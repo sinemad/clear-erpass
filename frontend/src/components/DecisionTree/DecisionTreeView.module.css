@@ -149,6 +149,30 @@
   text-overflow: ellipsis;
 }
 
+/* Inline rule node — sits in the main vertical pipeline flow */
+.inlineRule {
+  width: 260px;
+  padding: 8px 14px 10px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid;
+  border-radius: 6px;
+  cursor: default;
+  transition: box-shadow 0.15s;
+}
+
+.inlineRule.selected {
+  box-shadow: 0 0 0 2px var(--color-accent), 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+.inlineRuleLabel {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--color-text);
+  line-height: 1.35;
+  margin-top: 2px;
+}
+
 /* Policy rule sub-node (smaller card, dashed border, indented) */
 .ruleNode {
   width: 240px;

@@ -155,6 +155,51 @@ function PolicyRuleNodeComponent({ data, selected }: NodeProps<DecisionNodeData>
 }
 
 // ---------------------------------------------------------------------------
+// Inline rule node — sits in the main vertical flow between stage nodes
+// ---------------------------------------------------------------------------
+
+function InlineRuleNodeComponent({ data, selected }: NodeProps<DecisionNodeData>) {
+  const color = STAGE_COLOR[data.stage] ?? "#6b7280";
+  const details = data.details as Record<string, string>;
+  const order = details?.["Order"];
+  const roles = details?.["roles"];
+  const profiles = details?.["profiles"];
+  const outcomeField = roles ? "roles" : profiles ? "profiles" : null;
+  const outcomeValue = roles ?? profiles ?? null;
+
+  return (
+    <div
+      className={`${styles.inlineRule} ${selected ? styles.selected : ""}`}
+      style={{ borderLeftColor: color }}
+    >
+      <Handle type="target" position={Position.Top} className={styles.handle} />
+
+      {order && <div className={styles.ruleOrder} style={{ color }}>{`Rule ${order}`}</div>}
+      <div className={styles.inlineRuleLabel}>
+        <ConditionLabel text={data.label} />
+      </div>
+
+      {outcomeValue && outcomeField && (
+        <div className={styles.nodeChipRow}>
+          {outcomeValue.split(",").map((s) => s.trim()).filter(Boolean).map((item) => (
+            <span
+              key={item}
+              className={styles.nodeChip}
+              style={{ color: CHIP_COLOR[outcomeField], borderColor: CHIP_COLOR[outcomeField] }}
+              title={item}
+            >
+              {item}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <Handle type="source" position={Position.Bottom} className={styles.handle} />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Enforcement profile output node
 // ---------------------------------------------------------------------------
 
@@ -179,6 +224,7 @@ function EnfProfileNodeComponent({ data, selected }: NodeProps<DecisionNodeData>
 const NODE_TYPES = {
   decisionNode: DecisionNodeComponent,
   policyRuleNode: PolicyRuleNodeComponent,
+  inlineRuleNode: InlineRuleNodeComponent,
   enfProfileNode: EnfProfileNodeComponent,
 };
 

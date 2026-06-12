@@ -82,10 +82,11 @@
 
 /* Inline condition expression inside rule node label */
 .condLabel {
-  display: inline-flex;
+  display: flex;
   align-items: baseline;
-  flex-wrap: wrap;
-  gap: 3px;
+  flex-wrap: nowrap;
+  gap: 4px;
+  overflow: hidden;
   line-height: 1.5;
 }
 
@@ -93,6 +94,11 @@
   font-size: 0.78rem;
   font-weight: 600;
   color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex-shrink: 1;
 }
 
 .condLabelOp {
@@ -104,6 +110,7 @@
   border: 1px solid #fcd34d;
   padding: 0.05rem 0.3rem;
   border-radius: 3px;
+  flex-shrink: 0;
 }
 
 [data-theme="dark"] .condLabelOp {
@@ -117,6 +124,7 @@
   font-size: 0.72rem;
   font-weight: 500;
   color: var(--color-accent);
+  flex-shrink: 0;
 }
 
 /* Outcome chips inside rule nodes */
@@ -143,7 +151,7 @@
 
 /* Policy rule sub-node (smaller card, dashed border, indented) */
 .ruleNode {
-  width: 200px;
+  width: 240px;
   padding: 8px 12px 10px;
   background: var(--color-bg-elevated);
   border: 1px dashed var(--color-border);

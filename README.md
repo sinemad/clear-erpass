@@ -34,7 +34,7 @@ A read-only web application for visualizing Aruba ClearPass Policy Manager servi
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/your-org/clear-erpass.git
+git clone https://github.com/sinemad/clear-erpass.git
 cd clear-erpass
 
 # 2. Start the stack

@@ -4,6 +4,7 @@ v1 uses SQLite. Swap the engine URL via Settings.db_path when moving to
 Postgres — the models should not need to change.
 """
 
+import logging
 from typing import Generator
 
 from sqlalchemy import create_engine
@@ -11,10 +12,13 @@ from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.core.config import get_settings
 
+logger = logging.getLogger("app.db")
+
 
 def _engine():
     settings = get_settings()
     url = f"sqlite:///{settings.db_path}"
+    logger.debug("Initializing database engine: %s", url)
     return create_engine(url, connect_args={"check_same_thread": False})
 
 

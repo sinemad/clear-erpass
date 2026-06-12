@@ -26,14 +26,18 @@ accordingly).
 
 from __future__ import annotations
 
+import logging
+import time
 from typing import Annotated, Any
 
 from fastapi import Depends, HTTPException
-from pyclearpass import ClearPassAPILogin  # TODO: confirm import path/version
+from pyclearpass import ApiLogs, ApiPolicyElements
 from sqlalchemy.orm import Session
 
 from app.db.models import AppSettings
 from app.db.session import get_db
+
+logger = logging.getLogger("app.clearpass")
 
 
 class ClearPassClient:
@@ -45,33 +49,53 @@ class ClearPassClient:
     """
 
     def __init__(self, base_url: str, api_token: str, verify_ssl: bool = True) -> None:
-        self._login = ClearPassAPILogin(
-            server=base_url,
-            api_token=api_token,
-            verify_ssl=verify_ssl,
-        )
-        # TODO: instantiate the relevant pyclearpass API category class(es),
-        # e.g.:
-        #   self._services_api = ApiPolicyServices(self._login)
-        #   self._insight_api = ApiInsight(self._login)
+        logger.debug("Initializing ClearPass client for %s (verify_ssl=%s)", base_url, verify_ssl)
+        kwargs = dict(server=base_url, api_token=api_token, verify_ssl=verify_ssl)
+        self._policy = ApiPolicyElements(**kwargs)
+        self._logs = ApiLogs(**kwargs)
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _check_error(resp: Any, context: str = "") -> None:
+        """Raise RuntimeError if pyclearpass returned an API-level error dict."""
+        if not isinstance(resp, dict):
+            raise RuntimeError(f"Unexpected ClearPass response{f' ({context})' if context else ''}: {resp!r}")
+        if "detail" in resp and "id" not in resp and "_embedded" not in resp:
+            raise RuntimeError(str(resp["detail"]))
 
     # ------------------------------------------------------------------
     # Services
     # ------------------------------------------------------------------
     def list_services(self) -> list[dict[str, Any]]:
-        """Return the list of configured Policy Manager services (raw dicts).
+        """Return all configured Policy Manager services."""
+        logger.info("Fetching services from ClearPass")
+        start = time.monotonic()
+        resp = self._policy.get_config_service(limit=1000)
+        self._check_error(resp, "list_services")
+        items: list[dict[str, Any]] = resp.get("_embedded", {}).get("items", [])
+        ms = (time.monotonic() - start) * 1000
+        logger.info("Fetched %d service(s) from ClearPass (%.0f ms)", len(items), ms)
+        return items
 
-        TODO: replace with the actual pyclearpass call, e.g.:
-            return self._services_api.get_service(login=self._login)["_embedded"]["items"]
-        """
-        raise NotImplementedError
-
-    def get_service(self, service_id: str) -> dict[str, Any]:
-        """Return a single service definition by ID (raw dict).
-
-        TODO: replace with the actual pyclearpass call.
-        """
-        raise NotImplementedError
+    def get_service(self, service_id: str) -> dict[str, Any] | None:
+        """Return a single service by numeric ID, or None if not found."""
+        logger.info("Fetching service id=%s from ClearPass", service_id)
+        start = time.monotonic()
+        resp = self._policy.get_config_service_by_services_id(services_id=service_id)
+        ms = (time.monotonic() - start) * 1000
+        if not isinstance(resp, dict) or "id" not in resp:
+            detail = resp.get("detail", "") if isinstance(resp, dict) else str(resp)
+            if "404" in str(detail) or "not found" in str(detail).lower():
+                logger.info("Service id=%s not found (%.0f ms)", service_id, ms)
+                return None
+            if detail:
+                logger.warning("ClearPass error fetching service id=%s: %s", service_id, detail)
+                raise RuntimeError(str(detail))
+            return None
+        logger.info("Fetched service id=%s name=%r (%.0f ms)", service_id, resp.get("name"), ms)
+        return resp
 
     # ------------------------------------------------------------------
     # Access Tracker / Insight
@@ -83,30 +107,17 @@ class ClearPassClient:
         limit: int = 50,
         offset: int = 0,
     ) -> list[dict[str, Any]]:
-        """Return a page of Access Tracker / Insight session records (raw dicts).
-
-        `filter_query` follows ClearPass's REST filter syntax (e.g.
-        `{"date_time": {"$gte": "2026-06-12T00:00:00Z"}}`).
-
-        TODO: replace with the actual pyclearpass Insight/Access Tracker call,
-        e.g.:
-            return self._insight_api.get_insight_access_tracker(
-                login=self._login, filter=filter_query, limit=limit, offset=offset
-            )["_embedded"]["items"]
-        """
+        """Return a page of Access Tracker session records via ApiLogs."""
+        # TODO: confirm the correct ApiLogs method for Access Tracker records
+        # and map the filter_query into the appropriate parameter format.
+        logger.debug("list_access_tracker_records called (limit=%d, offset=%d)", limit, offset)
         raise NotImplementedError
 
-    def get_access_tracker_record(self, record_id: str) -> dict[str, Any]:
-        """Return a single Access Tracker / Insight record with full detail
-        (raw dict), including the policy evaluation trail needed to build the
-        decision tree.
-
-        TODO: replace with the actual pyclearpass call. Depending on the
-        ClearPass version, the detailed evaluation trail may require a
-        separate "session details" / "request details" endpoint in addition
-        to the summary record -- if so, fetch and merge both here so callers
-        get one complete dict.
-        """
+    def get_access_tracker_record(self, record_id: str) -> dict[str, Any] | None:
+        """Return a single Access Tracker record with full policy evaluation detail."""
+        # TODO: confirm the correct ApiLogs method and whether a separate
+        # session-details call is needed to get the full evaluation trail.
+        logger.debug("get_access_tracker_record called (id=%s)", record_id)
         raise NotImplementedError
 
 
@@ -136,6 +147,7 @@ def get_clearpass_client(
             pass
 
     if not base_url or not api_token:
+        logger.warning("ClearPass client requested but server is not configured")
         raise HTTPException(
             status_code=503,
             detail=(

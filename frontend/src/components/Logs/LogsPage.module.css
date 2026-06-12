@@ -1,0 +1,140 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 52px); /* fill below the nav */
+  font-family: system-ui, sans-serif;
+  color: var(--color-text);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-right: auto;
+}
+
+.select {
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--color-input-border);
+  border-radius: 6px;
+  background: var(--color-input-bg);
+  color: var(--color-input-text);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.refreshBtn,
+.clearBtn {
+  padding: 0.3rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+  color: var(--color-text);
+}
+
+.refreshBtn:hover,
+.clearBtn:hover {
+  background: var(--color-bg-hover);
+}
+
+.error {
+  padding: 0.5rem 1.25rem;
+  color: var(--color-status-error);
+  font-size: 0.875rem;
+  flex-shrink: 0;
+}
+
+.logArea {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: auto;
+}
+
+.empty {
+  padding: 2rem 1.25rem;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  font-family: ui-monospace, "Cascadia Code", "Source Code Pro", monospace;
+}
+
+.table th {
+  position: sticky;
+  top: 0;
+  background: var(--color-bg-elevated);
+  text-align: left;
+  padding: 0.4rem 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 0.75rem;
+  color: var(--color-th-text);
+  font-weight: 600;
+  white-space: nowrap;
+  z-index: 1;
+}
+
+.table td {
+  padding: 0.25rem 0.75rem;
+  border-bottom: 1px solid var(--color-border-light);
+  vertical-align: top;
+}
+
+.colTime  { width: 11rem; white-space: nowrap; color: var(--color-text-muted); }
+.colLevel { width: 6rem; }
+.colLogger { width: 16rem; white-space: nowrap; color: var(--color-text-muted); }
+.colMessage { word-break: break-word; }
+
+/* Row tinting by level */
+.rowWARNING td { background: rgba(234, 179, 8, 0.06); }
+.rowERROR td,
+.rowCRITICAL td { background: rgba(220, 38, 38, 0.07); }
+
+/* Level badges */
+.badge {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.badgeDEBUG    { background: var(--color-bg-elevated); color: var(--color-text-muted); }
+.badgeINFO     { background: rgba(59, 130, 246, 0.12); color: #3b82f6; }
+.badgeWARNING  { background: rgba(234, 179, 8, 0.15);  color: #ca8a04; }
+.badgeERROR    { background: rgba(220, 38, 38, 0.12);  color: #dc2626; }
+.badgeCRITICAL { background: rgba(220, 38, 38, 0.2);   color: #b91c1c; font-weight: 700; }
+
+.footer {
+  padding: 0.4rem 1.25rem;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  border-top: 1px solid var(--color-border);
+  flex-shrink: 0;
+}

@@ -7,6 +7,7 @@ retrieving the decision tree view for a specific record.
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from typing import Annotated
 
@@ -18,6 +19,7 @@ from app.decision_tree.builder import build_decision_tree
 from app.models.access_tracker import AccessTrackerSummary  # TODO: define this model
 from app.models.decision_tree import DecisionTree
 
+logger = logging.getLogger("app.api.access_tracker")
 router = APIRouter(prefix="/api/access-tracker", tags=["access-tracker"])
 
 
@@ -62,15 +64,27 @@ async def list_access_tracker_records(
       cache with a background refresh, rather than calling ClearPass
       synchronously on every request.
     """
+    logger.debug(
+        "list_access_tracker_records requested (start=%s, end=%s, service=%s, user=%s, result=%s, limit=%d, offset=%d)",
+        start_time, end_time, service_name, username, result, limit, offset,
+    )
     filter_query: dict = {}  # TODO: build from start_time/end_time/service_name/username/result
 
-    raw_records = await run_in_threadpool(
-        client.list_access_tracker_records,
-        filter_query=filter_query,
-        limit=limit,
-        offset=offset,
-    )
+    try:
+        raw_records = await run_in_threadpool(
+            client.list_access_tracker_records,
+            filter_query=filter_query,
+            limit=limit,
+            offset=offset,
+        )
+    except NotImplementedError:
+        logger.warning("list_access_tracker_records: ClearPass client not yet implemented")
+        raise HTTPException(status_code=501, detail="ClearPass client not yet implemented")
+    except Exception as exc:
+        logger.error("list_access_tracker_records failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"ClearPass API error: {exc}") from exc
 
+    logger.debug("list_access_tracker_records returning %d record(s)", len(raw_records))
     # TODO: replace with real mapping once AccessTrackerSummary fields and
     # raw record field names are finalized.
     return [AccessTrackerSummary.model_validate(r) for r in raw_records]
@@ -90,15 +104,19 @@ async def get_access_tracker_decision_tree(
     404 if the record does not exist / ClearPass returns no data.
     502 if the ClearPass API call fails unexpectedly.
     """
+    logger.debug("get_access_tracker_decision_tree requested: id=%s", record_id)
     try:
         raw_record = await run_in_threadpool(client.get_access_tracker_record, record_id)
     except NotImplementedError:
-        # Remove once ClearPassClient.get_access_tracker_record is implemented.
+        logger.warning("get_access_tracker_decision_tree: ClearPass client not yet implemented")
         raise HTTPException(status_code=501, detail="ClearPass client not yet implemented")
-    except Exception as exc:  # noqa: BLE001 - surface as a clean 502 to the client
+    except Exception as exc:
+        logger.error("get_access_tracker_decision_tree id=%s failed: %s", record_id, exc, exc_info=True)
         raise HTTPException(status_code=502, detail=f"ClearPass API error: {exc}") from exc
 
     if not raw_record:
+        logger.info("Access Tracker record id=%s not found", record_id)
         raise HTTPException(status_code=404, detail=f"Access Tracker record '{record_id}' not found")
 
+    logger.info("Building decision tree for record id=%s", record_id)
     return build_decision_tree(raw_record)

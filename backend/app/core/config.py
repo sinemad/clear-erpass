@@ -12,6 +12,8 @@ class Settings(BaseSettings):
 
     db_path: str = "/data/clearpass_visualizer.db"
 
+    log_level: str = "INFO"
+
     frontend_port: int = 8081
 
     @property

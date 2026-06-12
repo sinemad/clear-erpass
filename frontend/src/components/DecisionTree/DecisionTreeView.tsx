@@ -149,9 +149,9 @@ function PhaseNodeComponent({ data }: NodeProps<DecisionNodeData>) {
   const color = STAGE_COLOR[data.stage] ?? "#6b7280";
   const algo = data.details?.["algo"];
   return (
-    <div className={styles.phaseNode} style={{ borderColor: color }}>
+    <div className={styles.phaseNode} style={{ color }}>
       <Handle type="target" position={Position.Top} id="top" className={styles.handleInvis} />
-      <div className={styles.phaseLabel} style={{ color }}>
+      <div className={styles.phaseLabel}>
         <span className={styles.phaseArrow}>→</span>
         {data.label}
         {algo && (

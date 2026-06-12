@@ -69,8 +69,35 @@ function DecisionNodeComponent({ data, selected }: NodeProps<DecisionNodeData>) 
   );
 }
 
+// ---------------------------------------------------------------------------
+// Policy rule sub-node component
+// ---------------------------------------------------------------------------
+
+function PolicyRuleNodeComponent({ data, selected }: NodeProps<DecisionNodeData>) {
+  const color = STAGE_COLOR[data.stage] ?? "#6b7280";
+  const order = (data.details as Record<string, string>)?.["Order"];
+
+  return (
+    <div
+      className={`${styles.ruleNode} ${selected ? styles.selected : ""}`}
+      style={{ borderLeftColor: color }}
+    >
+      <Handle type="target" position={Position.Left} className={styles.handle} />
+
+      {order && <div className={styles.ruleOrder}>Rule {order}</div>}
+      <div className={styles.ruleLabel}>{data.label}</div>
+      {data.summary && <div className={styles.ruleSummary}>{data.summary}</div>}
+
+      <Handle type="source" position={Position.Right} className={styles.handle} />
+    </div>
+  );
+}
+
 // Must be defined outside the component to avoid re-creating on each render.
-const NODE_TYPES = { decisionNode: DecisionNodeComponent };
+const NODE_TYPES = {
+  decisionNode: DecisionNodeComponent,
+  policyRuleNode: PolicyRuleNodeComponent,
+};
 
 // ---------------------------------------------------------------------------
 // Main view

@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 from typing import Annotated
 
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.concurrency import run_in_threadpool
 
@@ -55,7 +57,42 @@ async def get_service_decision_tree(
     if not service:
         raise HTTPException(status_code=404, detail=f"Service '{service_id}' not found")
 
-    tree = build_service_tree(service)
+    # Fetch all referenced policies concurrently — failures are swallowed
+    # inside the client so missing policies never block tree rendering.
+    auth_method_names: list[str] = service.get("authentication_methods") or []
+    auth_source_names: list[str] = service.get("authentication_sources") or []
+    role_mapping_name: str = service.get("role_mapping_policy") or ""
+    posture_name: str = service.get("posture_policy") or ""
+    enforcement_name: str = service.get("enforcement_policy") or ""
+
+    async def fetch_list(names: list[str], fn) -> list[dict]:
+        if not names:
+            return []
+        results = await asyncio.gather(*[run_in_threadpool(fn, n) for n in names])
+        return [r for r in results if r]
+
+    async def fetch_one(name: str, fn):
+        return await run_in_threadpool(fn, name) if name else None
+
+    auth_methods_data, auth_sources_data, role_mapping_data, posture_data, enforcement_data = (
+        await asyncio.gather(
+            fetch_list(auth_method_names, client.get_auth_method),
+            fetch_list(auth_source_names, client.get_auth_source),
+            fetch_one(role_mapping_name, client.get_role_mapping),
+            fetch_one(posture_name, client.get_posture_policy),
+            fetch_one(enforcement_name, client.get_enforcement_policy),
+        )
+    )
+
+    policies = {
+        "auth_methods": auth_methods_data,
+        "auth_sources": auth_sources_data,
+        "role_mapping": role_mapping_data,
+        "posture_policy": posture_data,
+        "enforcement_policy": enforcement_data,
+    }
+
+    tree = build_service_tree(service, policies)
     logger.info("Built service tree for id=%s name=%r (%d nodes)", service_id, tree.service_name, len(tree.nodes))
     return tree
 

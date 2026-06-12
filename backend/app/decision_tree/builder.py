@@ -208,90 +208,257 @@ def _build_nodes_and_edges(
 # Service tree (structural / blueprint view)
 # ----------------------------------------------------------------------
 
-def build_service_tree(service: dict[str, Any]) -> ServiceTree:
+# Layout constants (pixels — React Flow coordinate space)
+_MAIN_X = 0       # x of the main pipeline nodes
+_DETAIL_X = 380   # x of the detail/rule sub-nodes
+_STAGE_H = 90     # approximate rendered height of a main stage node
+_RULE_H = 75      # approximate rendered height of a rule/detail node
+_STAGE_GAP = 60   # vertical gap between stage groups
+
+
+def _fmt_conditions(conditions: Any) -> str:
+    """Condense a ClearPass conditions list into a short readable string."""
+    if not conditions:
+        return ""
+    if isinstance(conditions, str):
+        return conditions[:100]
+    items: list[str] = []
+    for cond in (conditions if isinstance(conditions, list) else [conditions]):
+        if not isinstance(cond, dict):
+            items.append(str(cond)[:60])
+            continue
+        attr = cond.get("attribute") or cond.get("name") or cond.get("type") or ""
+        op   = cond.get("operator") or cond.get("oper") or "="
+        val  = cond.get("value") or cond.get("operand") or ""
+        if attr:
+            items.append(f"{attr} {op} {val}".strip())
+        if len(items) >= 2:
+            break
+    remainder = len(conditions) - len(items) if isinstance(conditions, list) else 0
+    result = " AND ".join(items)
+    return f"{result} (+{remainder} more)" if remainder > 0 else result
+
+
+def _fmt_list(val: Any) -> str:
+    if isinstance(val, list):
+        return ", ".join(str(v) for v in val)
+    return str(val) if val else ""
+
+
+def _policy_details(obj: dict[str, Any], *skip_keys: str) -> dict[str, str]:
+    """Extract human-readable key/value pairs from a policy dict."""
+    skip = {"id", "name", "description", "_embedded", "_links", "rules",
+            "rule_combine_algo", *skip_keys}
+    out: dict[str, str] = {}
+    for k, v in obj.items():
+        if k in skip or v is None or v == "" or v == []:
+            continue
+        out[k] = _fmt_list(v) if isinstance(v, list) else str(v)
+    return out
+
+
+def build_service_tree(service: dict[str, Any], policies: dict[str, Any] | None = None) -> ServiceTree:
     """Build a structural ServiceTree from a raw ClearPass service dict.
 
-    Produces one node per configured policy stage (service match,
-    authentication, authorization, role mapping, posture, enforcement,
-    result), connected top-to-bottom. All nodes use NOT_EVALUATED status
-    because this is a blueprint, not a traversal record.
+    Parameters
+    ----------
+    service:
+        Raw service dict from ClearPassClient.get_service().
+    policies:
+        Pre-fetched policy objects keyed by type. Expected keys:
+        ``auth_methods``, ``auth_sources``, ``role_mapping``,
+        ``posture_policy``, ``enforcement_policy``.
+        Pass None (or omit) to build a minimal tree without sub-nodes.
     """
+    p = policies or {}
     nodes: list[DecisionNode] = []
     edges: list[DecisionEdge] = []
-    y = 0
-    y_step = 150
-    x_center = 0
-    prev_id: str | None = None
-    order = 0
+    edge_order = 0
+    prev_pipeline_id: str | None = None
+    current_y = 0
 
-    def _add(node_id: str, label: str, stage: EvaluationStage,
-             summary: str | None = None, details: dict[str, str] | None = None) -> None:
-        nonlocal y, prev_id, order
+    def _add_main(node_id: str, label: str, stage: EvaluationStage,
+                  summary: str | None, details: dict[str, str],
+                  n_children: int) -> None:
+        nonlocal prev_pipeline_id, edge_order, current_y
+        # Centre the main node vertically over its children
+        group_h = max(_STAGE_H, n_children * _RULE_H)
+        node_y = current_y + (group_h - _STAGE_H) // 2
         nodes.append(DecisionNode(
             id=node_id,
-            position=Position(x=x_center, y=y),
+            position=Position(x=_MAIN_X, y=node_y),
             data=DecisionNodeData(
-                label=label,
-                stage=stage,
+                label=label, stage=stage,
                 status=EvaluationStatus.NOT_EVALUATED,
-                summary=summary,
-                details=details or {},
+                summary=summary, details=details,
             ),
         ))
-        if prev_id is not None:
-            order += 1
+        if prev_pipeline_id:
+            edge_order += 1
             edges.append(DecisionEdge(
-                id=f"e{order}", source=prev_id, target=node_id,
-                order=order, animated=False,
+                id=f"e{edge_order}", source=prev_pipeline_id, target=node_id,
+                order=edge_order, animated=False,
             ))
-        prev_id = node_id
-        y += y_step
+        prev_pipeline_id = node_id
+        return node_y  # type: ignore[return-value]  # intentional dual return
+
+    def _add_child(child_id: str, parent_id: str, label: str, stage: EvaluationStage,
+                   summary: str | None, details: dict[str, str], child_y: int) -> None:
+        nonlocal edge_order
+        nodes.append(DecisionNode(
+            id=child_id, type="policyRuleNode",
+            position=Position(x=_DETAIL_X, y=child_y),
+            data=DecisionNodeData(
+                label=label, stage=stage,
+                status=EvaluationStatus.NOT_EVALUATED,
+                summary=summary, details=details,
+            ),
+        ))
+        edge_order += 1
+        edges.append(DecisionEdge(
+            id=f"e{edge_order}", source=parent_id, target=child_id,
+            order=edge_order, animated=False,
+        ))
+
+    def _advance(n_children: int) -> None:
+        nonlocal current_y
+        current_y += max(_STAGE_H, n_children * _RULE_H) + _STAGE_GAP
 
     name = service.get("name", "Unknown Service")
     svc_type = str(service.get("type") or "")
 
-    _add("service", f"Service: {name}", EvaluationStage.SERVICE_MATCH,
-         summary=svc_type or None,
-         details={"type": svc_type} if svc_type else {})
+    # ---- Service Match ----
+    svc_details: dict[str, str] = {}
+    if svc_type:
+        svc_details["type"] = svc_type
+    if service.get("template"):
+        svc_details["template"] = str(service["template"])
+    if service.get("description"):
+        svc_details["description"] = str(service["description"])
+    _add_main("service", f"Service: {name}", EvaluationStage.SERVICE_MATCH,
+              svc_type or None, svc_details, 0)
+    _advance(0)
 
-    # Authentication
-    auth_methods = service.get("authentication_methods") or []
-    auth_sources = service.get("authentication_sources") or []
-    if auth_methods or auth_sources:
-        details: dict[str, str] = {}
-        if auth_methods:
-            details["methods"] = ", ".join(auth_methods) if isinstance(auth_methods, list) else str(auth_methods)
-        if auth_sources:
-            details["sources"] = ", ".join(auth_sources) if isinstance(auth_sources, list) else str(auth_sources)
-        _add("authentication", "Authentication", EvaluationStage.AUTHENTICATION,
-             summary=details.get("methods") or details.get("sources"), details=details)
+    # ---- Authentication ----
+    auth_method_objs: list[dict] = p.get("auth_methods") or []
+    auth_source_objs: list[dict] = p.get("auth_sources") or []
+    auth_method_names: list[str] = service.get("authentication_methods") or []
+    auth_source_names: list[str] = service.get("authentication_sources") or []
 
-    # Authorization
-    authz_sources = service.get("authorization_sources") or []
-    if authz_sources:
-        src_str = ", ".join(authz_sources) if isinstance(authz_sources, list) else str(authz_sources)
-        _add("authorization", "Authorization", EvaluationStage.AUTHORIZATION,
-             summary=src_str, details={"sources": src_str})
+    if auth_method_names or auth_source_names:
+        n_auth = len(auth_method_objs) + len(auth_source_objs) or (
+            len(auth_method_names) + len(auth_source_names)
+        )
+        auth_summary = _fmt_list(auth_method_names) or _fmt_list(auth_source_names)
+        _add_main("authentication", "Authentication", EvaluationStage.AUTHENTICATION,
+                  auth_summary or None, {}, n_auth)
+        child_y = current_y
+        for i, method_obj in enumerate(auth_method_objs):
+            m_name = method_obj.get("name", auth_method_names[i] if i < len(auth_method_names) else f"Method {i+1}")
+            m_type = method_obj.get("method_type") or method_obj.get("inner_method") or ""
+            _add_child(f"auth_method_{i}", "authentication", m_name,
+                       EvaluationStage.AUTHENTICATION,
+                       m_type or None, _policy_details(method_obj), child_y)
+            child_y += _RULE_H
+        # Fallback: if we have names but no objects, still show name nodes
+        if not auth_method_objs:
+            for i, m_name in enumerate(auth_method_names):
+                _add_child(f"auth_method_{i}", "authentication", m_name,
+                           EvaluationStage.AUTHENTICATION, None, {}, child_y)
+                child_y += _RULE_H
+        for i, src_obj in enumerate(auth_source_objs):
+            s_name = src_obj.get("name", auth_source_names[i] if i < len(auth_source_names) else f"Source {i+1}")
+            s_type = src_obj.get("type") or src_obj.get("source_type") or ""
+            _add_child(f"auth_source_{i}", "authentication", s_name,
+                       EvaluationStage.AUTHORIZATION,
+                       s_type or None, _policy_details(src_obj), child_y)
+            child_y += _RULE_H
+        if not auth_source_objs:
+            for i, s_name in enumerate(auth_source_names):
+                _add_child(f"auth_source_{i}", "authentication", s_name,
+                           EvaluationStage.AUTHORIZATION, None, {}, child_y)
+                child_y += _RULE_H
+        _advance(n_auth)
 
-    # Role mapping
-    role_policy = service.get("role_mapping_policy") or service.get("role_policy")
-    if role_policy:
-        _add("role_mapping", "Role Mapping", EvaluationStage.ROLE_MAPPING,
-             summary=str(role_policy), details={"policy": str(role_policy)})
+    # ---- Role Mapping ----
+    role_policy_name = service.get("role_mapping_policy") or service.get("role_policy") or ""
+    role_mapping_obj: dict | None = p.get("role_mapping")
+    if role_policy_name:
+        rules: list[dict] = []
+        if role_mapping_obj:
+            rules = role_mapping_obj.get("rules") or []
+        rm_details: dict[str, str] = {"policy": role_policy_name}
+        if role_mapping_obj:
+            rm_details.update(_policy_details(role_mapping_obj, "rules"))
+        _add_main("role_mapping", "Role Mapping", EvaluationStage.ROLE_MAPPING,
+                  role_policy_name, rm_details, len(rules))
+        for i, rule in enumerate(rules):
+            conditions = rule.get("conditions") or rule.get("condition") or []
+            roles_assigned = rule.get("roles") or rule.get("role") or []
+            cond_str = _fmt_conditions(conditions)
+            roles_str = _fmt_list(roles_assigned)
+            label = f"Rule {i + 1}"
+            summary = f"{cond_str} → {roles_str}" if cond_str and roles_str else (cond_str or roles_str or None)
+            child_details = {}
+            if cond_str:
+                child_details["conditions"] = cond_str
+            if roles_str:
+                child_details["roles"] = roles_str
+            _add_child(f"rm_rule_{i}", "role_mapping", label,
+                       EvaluationStage.ROLE_MAPPING, summary, child_details,
+                       current_y + i * _RULE_H)
+        _advance(max(1, len(rules)))
 
-    # Posture
-    posture_policy = service.get("posture_policy")
-    if posture_policy:
-        _add("posture", "Posture", EvaluationStage.POSTURE,
-             summary=str(posture_policy), details={"policy": str(posture_policy)})
+    # ---- Posture ----
+    posture_name = service.get("posture_policy") or ""
+    posture_obj: dict | None = p.get("posture_policy")
+    if posture_name:
+        posture_rules: list[dict] = posture_obj.get("rules") or [] if posture_obj else []
+        posture_details: dict[str, str] = {"policy": posture_name}
+        if posture_obj:
+            posture_details.update(_policy_details(posture_obj, "rules"))
+        _add_main("posture", "Posture", EvaluationStage.POSTURE,
+                  posture_name, posture_details, len(posture_rules))
+        for i, rule in enumerate(posture_rules):
+            cond_str = _fmt_conditions(rule.get("conditions") or rule.get("condition") or [])
+            _add_child(f"posture_rule_{i}", "posture", f"Rule {i + 1}",
+                       EvaluationStage.POSTURE, cond_str or None,
+                       {k: str(v) for k, v in rule.items() if v and k not in ("conditions",)},
+                       current_y + i * _RULE_H)
+        _advance(max(1, len(posture_rules)))
 
-    # Enforcement
-    enforcement_policy = service.get("enforcement_policy")
-    if enforcement_policy:
-        _add("enforcement", "Enforcement", EvaluationStage.ENFORCEMENT,
-             summary=str(enforcement_policy), details={"policy": str(enforcement_policy)})
+    # ---- Enforcement ----
+    enforcement_name = service.get("enforcement_policy") or ""
+    enforcement_obj: dict | None = p.get("enforcement_policy")
+    if enforcement_name:
+        enforcement_rules: list[dict] = enforcement_obj.get("rules") or [] if enforcement_obj else []
+        enf_details: dict[str, str] = {"policy": enforcement_name}
+        if enforcement_obj:
+            enf_details.update(_policy_details(enforcement_obj, "rules"))
+        _add_main("enforcement", "Enforcement", EvaluationStage.ENFORCEMENT,
+                  enforcement_name, enf_details, len(enforcement_rules))
+        for i, rule in enumerate(enforcement_rules):
+            conditions = rule.get("conditions") or rule.get("condition") or []
+            profiles = rule.get("enforcement_profiles") or rule.get("profiles") or rule.get("profile") or []
+            cond_str = _fmt_conditions(conditions)
+            prof_str = _fmt_list(profiles) if isinstance(profiles, list) else (
+                profiles.get("name", "") if isinstance(profiles, dict) else str(profiles)
+            )
+            label = f"Rule {i + 1}"
+            summary = f"{cond_str} → {prof_str}" if cond_str and prof_str else (cond_str or prof_str or None)
+            child_details = {}
+            if cond_str:
+                child_details["conditions"] = cond_str
+            if prof_str:
+                child_details["profiles"] = prof_str
+            _add_child(f"enf_rule_{i}", "enforcement", label,
+                       EvaluationStage.ENFORCEMENT, summary, child_details,
+                       current_y + i * _RULE_H)
+        _advance(max(1, len(enforcement_rules)))
 
-    _add("result", "Result", EvaluationStage.RESULT)
+    # ---- Result ----
+    _add_main("result", "Result", EvaluationStage.RESULT, None, {}, 0)
+    _advance(0)
 
     return ServiceTree(
         service_id=str(service.get("id", "")),

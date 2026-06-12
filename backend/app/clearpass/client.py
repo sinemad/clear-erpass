@@ -70,6 +70,49 @@ class ClearPassClient:
         if "detail" in resp and "id" not in resp and "_embedded" not in resp:
             raise RuntimeError(str(resp["detail"]))
 
+    def _fetch_by_name(self, method_name: str, name: str) -> dict[str, Any] | None:
+        """Call a pyclearpass ApiPolicyElements 'get_X_name_by_name' method safely.
+
+        Returns the response dict if it looks valid (has an 'id' key), None on
+        404 or any other error. Errors are logged at DEBUG level and suppressed
+        so a missing policy never blocks the whole tree from rendering.
+        """
+        if not name:
+            return None
+        try:
+            resp = getattr(self._policy, method_name)(name=name)
+            if isinstance(resp, dict) and "id" in resp:
+                return resp
+            logger.debug("%s(name=%r) returned no valid data", method_name, name)
+            return None
+        except Exception as exc:
+            logger.debug("%s(name=%r) failed: %s", method_name, name, exc)
+            return None
+
+    # ------------------------------------------------------------------
+    # Policy element lookups (by name)
+    # ------------------------------------------------------------------
+
+    def get_role_mapping(self, name: str) -> dict[str, Any] | None:
+        logger.debug("Fetching role mapping policy: %r", name)
+        return self._fetch_by_name("get_role_mapping_name_by_name", name)
+
+    def get_enforcement_policy(self, name: str) -> dict[str, Any] | None:
+        logger.debug("Fetching enforcement policy: %r", name)
+        return self._fetch_by_name("get_enforcement_policy_name_by_name", name)
+
+    def get_auth_method(self, name: str) -> dict[str, Any] | None:
+        logger.debug("Fetching auth method: %r", name)
+        return self._fetch_by_name("get_auth_method_name_by_name", name)
+
+    def get_auth_source(self, name: str) -> dict[str, Any] | None:
+        logger.debug("Fetching auth source: %r", name)
+        return self._fetch_by_name("get_auth_source_name_by_name", name)
+
+    def get_posture_policy(self, name: str) -> dict[str, Any] | None:
+        logger.debug("Fetching posture policy: %r", name)
+        return self._fetch_by_name("get_posture_policy_name_by_name", name)
+
     # ------------------------------------------------------------------
     # Services
     # ------------------------------------------------------------------

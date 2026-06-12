@@ -239,11 +239,22 @@
 }
 
 .condOp {
-  font-size: 0.7rem;
+  font-family: ui-monospace, "Cascadia Code", "Fira Code", monospace;
+  font-size: 0.65rem;
   font-weight: 700;
-  color: var(--color-text-muted);
-  min-width: 1rem;
-  text-align: center;
+  color: #92400e;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+[data-theme="dark"] .condOp {
+  color: #fcd34d;
+  background: rgba(252, 211, 77, 0.12);
+  border-color: rgba(252, 211, 77, 0.3);
 }
 
 .condVal {

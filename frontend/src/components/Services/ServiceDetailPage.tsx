@@ -154,38 +154,32 @@ function DetailPanel({
       {/* Label */}
       <div className={styles.panelLabel}>{data.label}</div>
 
-      {/* Summary */}
-      {data.summary && !chipEntries.find(([k]) => k === "roles" || k === "profiles") && (
-        <p className={styles.panelSummary}>{data.summary}</p>
-      )}
+      {/* Condition — rendered first: "if this is true…" */}
+      {codeEntries.map(([, v]) => (
+        <div key="conditions" className={styles.panelSection}>
+          <div className={styles.sectionLabel}>
+            <span className={styles.sectionIcon}>≡</span> If
+          </div>
+          <ConditionBlock value={v} />
+        </div>
+      ))}
 
-      {/* Chips: roles */}
+      {/* Outcome — what the rule does when condition matches */}
       {chipEntries.filter(([k]) => k === "roles").map(([, v]) => (
         <div key="roles" className={styles.panelSection}>
           <div className={styles.sectionLabel}>
-            <span className={styles.sectionIcon}>◉</span> Roles
+            <span className={styles.sectionIcon}>◉</span> Assign Roles
           </div>
           <Chips value={v} color="#0891b2" />
         </div>
       ))}
 
-      {/* Chips: profiles */}
       {chipEntries.filter(([k]) => k === "profiles").map(([, v]) => (
         <div key="profiles" className={styles.panelSection}>
           <div className={styles.sectionLabel}>
-            <span className={styles.sectionIcon}>⇒</span> Profiles
+            <span className={styles.sectionIcon}>⇒</span> Apply Profiles
           </div>
           <Chips value={v} color="#059669" />
-        </div>
-      ))}
-
-      {/* Conditions */}
-      {codeEntries.map(([, v]) => (
-        <div key="conditions" className={styles.panelSection}>
-          <div className={styles.sectionLabel}>
-            <span className={styles.sectionIcon}>≡</span> Condition
-          </div>
-          <ConditionBlock value={v} />
         </div>
       ))}
 

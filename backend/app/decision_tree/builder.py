@@ -349,14 +349,18 @@ def build_service_tree(service: dict[str, Any], policies: dict[str, Any] | None 
             ),
         )
 
-    def _separator(nid: str, label: str, stage: EvaluationStage) -> DecisionNode:
+    def _separator(nid: str, label: str, stage: EvaluationStage,
+                   algo: str | None = None) -> DecisionNode:
         """Thin merge/join node that separates two evaluation phases."""
+        d: dict[str, str] = {}
+        if algo:
+            d["algo"] = algo
         return DecisionNode(
             id=nid, type="phaseNode",
             position=Position(x=_Q_X, y=current_y),
             data=DecisionNodeData(
                 label=label, stage=stage,
-                status=EvaluationStatus.NOT_EVALUATED, details={},
+                status=EvaluationStatus.NOT_EVALUATED, details=d,
             ),
         )
 
@@ -406,12 +410,23 @@ def build_service_tree(service: dict[str, Any], policies: dict[str, Any] | None 
     # ── Role Mapping ───────────────────────────────────────────────────
     role_policy_name = service.get("role_mapping_policy") or service.get("role_policy") or ""
     role_mapping_obj: dict | None = p.get("role_mapping")
+    # Pre-compute enforcement algo here so rm_sep pill can show it
+    _enf_obj_pre: dict | None = p.get("enforcement_policy")
+    _enf_algo_pre = _eval_mode(_enf_obj_pre)
     assigned_roles: list[str] = []
     all_role_out_ids: list[str] = []  # all role outcomes (Yes + default) → connect to enforcement
 
     if role_policy_name:
         rm_algo = _eval_mode(role_mapping_obj)
         rm_rules: list[dict] = (role_mapping_obj.get("rules") or []) if role_mapping_obj else []
+
+        # Phase separator at the START of role mapping — shows the eval mode for this section
+        nodes.append(_separator("rm_phase", "Role Mapping", EvaluationStage.ROLE_MAPPING, algo=rm_algo))
+        edges.append(_edge(prev_spine, "rm_phase",
+                           src_handle="bottom" if prev_spine == "auth_q" else None))
+        prev_spine = "rm_phase"
+        current_y += _SEP_STEP
+
         last_rm_q = prev_spine
 
         for i, rule in enumerate(rm_rules):
@@ -435,12 +450,10 @@ def build_service_tree(service: dict[str, Any], policies: dict[str, Any] | None 
             q_label, needs_xlat = make_question_label(cond_str) if cond_str else (f"Rule {i + 1}?", False)
             qid = f"rm_q_{i}"
             nodes.append(_question(qid, q_label, EvaluationStage.ROLE_MAPPING,
-                                   raw_cond=cond_str, needs_xlat=needs_xlat,
-                                   algo=rm_algo if i == 0 else None))
+                                   raw_cond=cond_str, needs_xlat=needs_xlat))
 
             if i == 0:
-                edges.append(_edge(prev_spine, qid,
-                                   src_handle="bottom" if prev_spine == "auth_q" else None))
+                edges.append(_edge(prev_spine, qid))
             else:
                 edges.append(_edge(f"rm_q_{i - 1}", qid, label="No", src_handle="bottom"))
 
@@ -476,7 +489,7 @@ def build_service_tree(service: dict[str, Any], policies: dict[str, Any] | None 
 
         # Phase separator — merge point between role mapping and enforcement
         if all_role_out_ids:
-            nodes.append(_separator("rm_sep", "Enforcement", EvaluationStage.ENFORCEMENT))
+            nodes.append(_separator("rm_sep", "Enforcement", EvaluationStage.ENFORCEMENT, algo=_enf_algo_pre))
             # Connect all role outcomes to the separator (from their bottom handles)
             for rid in all_role_out_ids:
                 edges.append(_edge(rid, "rm_sep", src_handle="bottom"))
@@ -522,8 +535,7 @@ def build_service_tree(service: dict[str, Any], policies: dict[str, Any] | None 
             q_label, needs_xlat = make_question_label(cond_str) if cond_str else (f"Rule {i + 1}?", False)
             qid = f"enf_q_{i}"
             nodes.append(_question(qid, q_label, EvaluationStage.ENFORCEMENT,
-                                   raw_cond=cond_str, needs_xlat=needs_xlat,
-                                   algo=enf_algo if i == 0 else None))
+                                   raw_cond=cond_str, needs_xlat=needs_xlat))
 
             if i == 0:
                 edges.append(_edge(prev_spine, qid,
@@ -556,7 +568,7 @@ def build_service_tree(service: dict[str, Any], policies: dict[str, Any] | None 
 
         # Phase separator — merge point before access decision
         if all_enf_out_ids:
-            nodes.append(_separator("enf_sep", "Access Decision", EvaluationStage.RESULT))
+            nodes.append(_separator("enf_sep", "Access Decision", EvaluationStage.RESULT, algo=None))
             for eid in all_enf_out_ids:
                 edges.append(_edge(eid, "enf_sep", src_handle="bottom"))
             if not dp_raw:

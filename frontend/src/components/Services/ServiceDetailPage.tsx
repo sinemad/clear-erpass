@@ -282,7 +282,6 @@ export default function ServiceDetailPage() {
 
           {selectedNode && (
             <DetailPanel
-              nodeId={selectedNode.id}
               data={selectedNode.data}
               onClose={() => setSelectedNode(null)}
             />

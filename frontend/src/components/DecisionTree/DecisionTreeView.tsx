@@ -118,8 +118,6 @@ const OUTCOME_META: Record<string, { color: string; icon: string; typeLabel: str
 
 function OutcomeNodeComponent({ data, selected }: NodeProps<DecisionNodeData>) {
   const meta = OUTCOME_META[data.summary ?? "role"] ?? OUTCOME_META.role;
-  const isSpine = data.summary === "default_role" || data.summary === "default_profile"
-    || data.summary === "accept";
 
   return (
     <div
@@ -136,10 +134,8 @@ function OutcomeNodeComponent({ data, selected }: NodeProps<DecisionNodeData>) {
         <div className={styles.outcomeLabel}>{data.label}</div>
       </div>
 
-      {/* Bottom source for spine passthrough nodes (default role/profile, accept) */}
-      {isSpine && (
-        <Handle type="source" position={Position.Bottom} id="bottom" className={styles.handleInvis} />
-      )}
+      {/* Bottom source — all outcome nodes can connect downward */}
+      <Handle type="source" position={Position.Bottom} id="bottom" className={styles.handleInvis} />
     </div>
   );
 }
@@ -161,6 +157,14 @@ const NODE_TYPES = {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function styleEdge(edge: any) {
   const label = edge.label as string | undefined;
+  // Unlabeled edges from role outcomes → enforcement (continuation)
+  if (!label && (edge.source as string)?.startsWith("rm_out_")) {
+    return {
+      ...edge,
+      style: { stroke: "#4b5563", strokeWidth: 1, strokeDasharray: "3 4" },
+      type: "smoothstep",
+    };
+  }
   if (label === "Yes") {
     return {
       ...edge,

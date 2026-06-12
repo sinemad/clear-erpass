@@ -391,10 +391,12 @@ def build_service_tree(service: dict[str, Any], policies: dict[str, Any] | None 
     role_mapping_obj: dict | None = p.get("role_mapping")
     assigned_roles: list[str] = []
 
+    role_yes_out_ids: list[str] = []  # Yes-branch role outcomes — also connect to enforcement
+
     if role_policy_name:
         rm_rules: list[dict] = (role_mapping_obj.get("rules") or []) if role_mapping_obj else []
 
-        last_rm_q: str = prev_spine  # will track last question on spine
+        last_rm_q: str = prev_spine
 
         for i, rule in enumerate(rm_rules):
             conditions = rule.get("conditions") or rule.get("condition") or []
@@ -419,18 +421,18 @@ def build_service_tree(service: dict[str, Any], policies: dict[str, Any] | None 
             nodes.append(_question(qid, q_label, EvaluationStage.ROLE_MAPPING,
                                    raw_cond=cond_str, needs_xlat=needs_xlat))
 
-            # Connect from previous spine node
             if i == 0:
                 edges.append(_edge(prev_spine, qid,
                                    src_handle="bottom" if prev_spine == "auth_q" else None))
             else:
                 edges.append(_edge(f"rm_q_{i - 1}", qid, label="No", src_handle="bottom"))
 
-            # Yes → role outcome
+            # Yes → role outcome (right side)
             if roles_str:
                 oid = f"rm_out_{i}"
                 nodes.append(_outcome(oid, roles_str, EvaluationStage.ROLE_MAPPING, "role"))
                 edges.append(_edge(qid, oid, label="Yes", src_handle="right"))
+                role_yes_out_ids.append(oid)
                 for r in roles_str.split(","):
                     r = r.strip()
                     if r and r not in assigned_roles:
@@ -439,7 +441,7 @@ def build_service_tree(service: dict[str, Any], policies: dict[str, Any] | None 
             last_rm_q = qid
             current_y += _Y_STEP
 
-        # Default role — sits on the spine, connects to enforcement below
+        # Default role — sits on the spine (passthrough to enforcement)
         dr_raw = (role_mapping_obj or {}).get("default_role") or \
                  (role_mapping_obj or {}).get("default_role_name") or \
                  (role_mapping_obj or {}).get("fallback_role")
@@ -496,6 +498,9 @@ def build_service_tree(service: dict[str, Any], policies: dict[str, Any] | None 
             if i == 0:
                 edges.append(_edge(prev_spine, qid,
                                    src_handle="bottom" if prev_spine in ("auth_q",) else None))
+                # All role Yes-branch outcomes also converge here — enforcement always runs
+                for rid in role_yes_out_ids:
+                    edges.append(_edge(rid, qid, src_handle="bottom"))
             else:
                 edges.append(_edge(f"enf_q_{i - 1}", qid, label="No", src_handle="bottom"))
 

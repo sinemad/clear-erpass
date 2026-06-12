@@ -49,8 +49,13 @@ class ClearPassClient:
     """
 
     def __init__(self, base_url: str, api_token: str, verify_ssl: bool = True) -> None:
-        logger.debug("Initializing ClearPass client for %s (verify_ssl=%s)", base_url, verify_ssl)
-        kwargs = dict(server=base_url, api_token=api_token, verify_ssl=verify_ssl)
+        # pyclearpass constructs URLs as server + path (e.g. "/config/service"),
+        # so the server value must end with /api.
+        api_url = base_url.rstrip("/")
+        if not api_url.endswith("/api"):
+            api_url = f"{api_url}/api"
+        logger.debug("Initializing ClearPass client for %s (verify_ssl=%s)", api_url, verify_ssl)
+        kwargs = dict(server=api_url, api_token=api_token, verify_ssl=verify_ssl)
         self._policy = ApiPolicyElements(**kwargs)
         self._logs = ApiLogs(**kwargs)
 

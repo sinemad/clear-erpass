@@ -56,7 +56,7 @@ export default function SettingsPage() {
             id="url"
             type="url"
             required
-            placeholder="https://clearpass.example.com"
+            placeholder="https://clearpass.example.com (or …/api)"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
           />

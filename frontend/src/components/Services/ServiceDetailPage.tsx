@@ -2,14 +2,14 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useNodesState, useEdgesState } from "reactflow";
 import { fetchServiceTree } from "../../api/services";
-import type { DecisionNodeData, EvaluationStage, ServiceTree } from "../../types/decisionTree";
+import type { DecisionNodeData, EvaluationStage, PolicyRule, ServiceTree } from "../../types/decisionTree";
 import DecisionTreeView from "../DecisionTree/DecisionTreeView";
 import styles from "./ServiceDetailPage.module.css";
 
 type LoadState = "loading" | "ok" | "error";
 
 // -------------------------------------------------------------------------
-// Stage metadata for the drawer header badge
+// Stage metadata
 // -------------------------------------------------------------------------
 
 const STAGE_COLOR: Record<EvaluationStage, string> = {
@@ -43,25 +43,164 @@ const STAGE_ICON: Record<EvaluationStage, string> = {
 };
 
 // -------------------------------------------------------------------------
-// Chip-type fields: rendered as pill chips instead of plain text
+// Condition helpers
 // -------------------------------------------------------------------------
-const CHIP_FIELDS = new Set([
-  "roles", "profiles",
-  // Default/fallback assignments (policy-level, not rule-level)
-  "default_role", "default_role_name", "fallback_role",
-  "default_enforcement_profile", "default_profile",
-]);
 
-// Fields that represent a fallback/default rather than an active assignment
-const DEFAULT_FIELDS = new Set([
-  "default_role", "default_role_name", "fallback_role",
-  "default_enforcement_profile", "default_profile",
-]);
+const OPERATORS = [
+  "NOT_EQUALS", "EQUALS", "CONTAINS", "STARTS_WITH", "ENDS_WITH",
+  "MATCHES_REGEX", "GREATER_THAN", "LESS_THAN",
+];
 
-// Fields rendered in a code block (monospace, condition expressions)
-const CODE_FIELDS = new Set(["conditions"]);
+const OP_DISPLAY: Record<string, string> = {
+  EQUALS: "=", NOT_EQUALS: "≠", CONTAINS: "∋",
+  STARTS_WITH: "^=", ENDS_WITH: "$=",
+  MATCHES_REGEX: "~", GREATER_THAN: ">", LESS_THAN: "<",
+};
 
-// Fields rendered with a named icon prefix
+function ConditionCell({ value }: { value: string }) {
+  if (!value) return <span className={styles.condEmpty}>—</span>;
+
+  const parts = value.replace(/ \(\+\d+ more\)$/, "").split(" AND ");
+  const extra = value.match(/\(\+\d+ more\)/)?.[0];
+
+  return (
+    <div className={styles.conditionBlock}>
+      {parts.map((part, i) => {
+        for (const op of OPERATORS) {
+          const idx = part.indexOf(` ${op} `);
+          if (idx !== -1) {
+            const attr = part.slice(0, idx);
+            const val = part.slice(idx + op.length + 2);
+            return (
+              <div key={i} className={styles.conditionRow}>
+                <span className={styles.condAttr}>{attr}</span>
+                <span className={styles.condOp}>{OP_DISPLAY[op] ?? op}</span>
+                <span className={styles.condVal}>{val}</span>
+              </div>
+            );
+          }
+        }
+        return (
+          <div key={i} className={styles.conditionRow}>
+            <span className={styles.condAttr}>{part}</span>
+          </div>
+        );
+      })}
+      {extra && <div className={styles.condMore}>{extra}</div>}
+    </div>
+  );
+}
+
+// -------------------------------------------------------------------------
+// Action cell — chips for roles/profiles, plain text for methods/sources
+// -------------------------------------------------------------------------
+
+const ACTION_COLOR: Record<string, string> = {
+  role: "#0891b2",
+  default_role: "#6b7280",
+  profile: "#059669",
+  default_profile: "#6b7280",
+  method: "#7c3aed",
+  source: "#2563eb",
+  posture: "#d97706",
+};
+
+const ACTION_LABEL: Record<string, string> = {
+  role: "Role",
+  default_role: "Default Role",
+  profile: "Profile",
+  default_profile: "Default Profile",
+  method: "Method",
+  source: "Source",
+  posture: "Check",
+};
+
+function ActionCell({ rule, stageColor }: { rule: PolicyRule; stageColor: string }) {
+  const color = ACTION_COLOR[rule.action_type] ?? stageColor;
+  const isDefault = rule.action_type === "default_role" || rule.action_type === "default_profile";
+
+  if (!rule.action) {
+    return <span className={styles.condEmpty}>—</span>;
+  }
+
+  const items = rule.action.split(",").map((s) => s.trim()).filter(Boolean);
+
+  return (
+    <div className={styles.actionCell}>
+      {items.map((item) => (
+        <span
+          key={item}
+          className={`${styles.chip} ${isDefault ? styles.chipDefault : ""}`}
+          style={{ borderColor: color, color }}
+          title={item}
+        >
+          {item}
+        </span>
+      ))}
+      {rule.action_detail && (
+        <span className={styles.actionDetail}>{rule.action_detail}</span>
+      )}
+    </div>
+  );
+}
+
+// -------------------------------------------------------------------------
+// Rule table
+// -------------------------------------------------------------------------
+
+function RuleTable({ rules, stage }: { rules: PolicyRule[]; stage: EvaluationStage }) {
+  const color = STAGE_COLOR[stage] ?? "#6b7280";
+
+  // Determine which columns to show
+  const hasConditions = rules.some((r) => r.condition);
+  const actionLabel = rules.length > 0 ? (ACTION_LABEL[rules[0].action_type] ?? "Action") : "Action";
+
+  return (
+    <div className={styles.ruleTableWrapper}>
+      <table className={styles.ruleTable}>
+        <thead>
+          <tr>
+            <th className={styles.ruleTableTh} style={{ width: "2rem" }}>#</th>
+            {hasConditions && <th className={styles.ruleTableTh}>Condition</th>}
+            <th className={styles.ruleTableTh}>{actionLabel}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rules.map((rule) => {
+            const isDefault = rule.action_type === "default_role" || rule.action_type === "default_profile";
+            return (
+              <tr
+                key={rule.order}
+                className={`${styles.ruleTableRow} ${isDefault ? styles.ruleTableRowDefault : ""}`}
+              >
+                <td className={styles.ruleTableTd}>
+                  {isDefault ? (
+                    <span className={styles.defaultBadge} title="Applied when no rule matches">↩</span>
+                  ) : (
+                    <span className={styles.ruleNum} style={{ color }}>{rule.order}</span>
+                  )}
+                </td>
+                {hasConditions && (
+                  <td className={styles.ruleTableTd}>
+                    <ConditionCell value={rule.condition ?? ""} />
+                  </td>
+                )}
+                <td className={styles.ruleTableTd}>
+                  <ActionCell rule={rule} stageColor={color} />
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// -------------------------------------------------------------------------
+// Detail panel — shown when a stage node is clicked
+// -------------------------------------------------------------------------
+
 const FIELD_ICON: Record<string, string> = {
   policy: "◈",
   type: "◧",
@@ -72,64 +211,6 @@ const FIELD_ICON: Record<string, string> = {
   source_type: "⊕",
 };
 
-// -------------------------------------------------------------------------
-// Helpers
-// -------------------------------------------------------------------------
-
-function Chips({ value, color }: { value: string; color: string }) {
-  const items = value.split(",").map((s) => s.trim()).filter(Boolean);
-  return (
-    <div className={styles.chipRow}>
-      {items.map((item) => (
-        <span key={item} className={styles.chip} style={{ borderColor: color, color }}>
-          {item}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-function ConditionBlock({ value }: { value: string }) {
-  // Try to parse "Attr OPERATOR Value" segments separated by " AND "
-  const parts = value.replace(/ \(\+\d+ more\)$/, "").split(" AND ");
-  return (
-    <div className={styles.conditionBlock}>
-      {parts.map((part, i) => {
-        const ops = ["NOT_EQUALS", "EQUALS", "CONTAINS", "STARTS_WITH", "ENDS_WITH", "MATCHES_REGEX", "GREATER_THAN", "LESS_THAN"];
-        let matched = false;
-        for (const op of ops) {
-          const idx = part.indexOf(` ${op} `);
-          if (idx !== -1) {
-            const attr = part.slice(0, idx);
-            const val = part.slice(idx + op.length + 2);
-            const opDisplay = op === "NOT_EQUALS" ? "≠" : op === "EQUALS" ? "=" : op === "CONTAINS" ? "∋" : op === "STARTS_WITH" ? "^=" : op === "ENDS_WITH" ? "$=" : op === "GREATER_THAN" ? ">" : op === "LESS_THAN" ? "<" : op;
-            matched = true;
-            return (
-              <div key={i} className={styles.conditionRow}>
-                <span className={styles.condAttr}>{attr}</span>
-                <span className={styles.condOp}>{opDisplay}</span>
-                <span className={styles.condVal}>{val}</span>
-              </div>
-            );
-          }
-        }
-        return matched ? null : (
-          <div key={i} className={styles.conditionRow}>
-            <span className={styles.condAttr}>{part}</span>
-          </div>
-        );
-      })}
-      {value.includes("(+") && (
-        <div className={styles.condMore}>{value.match(/\(\+\d+ more\)/)?.[0]}</div>
-      )}
-    </div>
-  );
-}
-
-// -------------------------------------------------------------------------
-// Main panel
-// -------------------------------------------------------------------------
-
 function DetailPanel({
   data,
   onClose,
@@ -139,14 +220,11 @@ function DetailPanel({
 }) {
   const color = STAGE_COLOR[data.stage] ?? "#6b7280";
   const details = data.details as Record<string, string>;
-  const order = details["Order"];
+  const policyRules = data.policy_rules ?? [];
 
-  // Partition details into sections
-  const chipEntries = Object.entries(details).filter(([k]) => CHIP_FIELDS.has(k));
-  const codeEntries = Object.entries(details).filter(([k]) => CODE_FIELDS.has(k));
-  const otherEntries = Object.entries(details).filter(
-    ([k]) => !CHIP_FIELDS.has(k) && !CODE_FIELDS.has(k) && k !== "Order"
-  );
+  // Show only non-redundant "other" fields (skip policy if it's in the label)
+  const skipKeys = new Set(["Order", "rules_count"]);
+  const otherEntries = Object.entries(details).filter(([k]) => !skipKeys.has(k));
 
   return (
     <aside className={styles.detailPanel}>
@@ -157,7 +235,6 @@ function DetailPanel({
             <span className={styles.stageIcon}>{STAGE_ICON[data.stage]}</span>
             {STAGE_LABEL[data.stage]}
           </span>
-          {order && <span className={styles.orderBadge}>Rule {order}</span>}
         </div>
         <button className={styles.panelClose} onClick={onClose} aria-label="Close">✕</button>
       </div>
@@ -165,46 +242,12 @@ function DetailPanel({
       {/* Label */}
       <div className={styles.panelLabel}>{data.label}</div>
 
-      {/* Condition — rendered first: "if this is true…" */}
-      {codeEntries.map(([, v]) => (
-        <div key="conditions" className={styles.panelSection}>
-          <div className={styles.sectionLabel}>
-            <span className={styles.sectionIcon}>≡</span> If
-          </div>
-          <ConditionBlock value={v} />
-        </div>
-      ))}
+      {/* Summary (policy name) */}
+      {data.summary && (
+        <p className={styles.panelSummary}>{data.summary}</p>
+      )}
 
-      {/* Outcome — what the rule does when condition matches */}
-      {chipEntries.filter(([k]) => k === "roles").map(([, v]) => (
-        <div key="roles" className={styles.panelSection}>
-          <div className={styles.sectionLabel}>
-            <span className={styles.sectionIcon}>◉</span> Assign Roles
-          </div>
-          <Chips value={v} color="#0891b2" />
-        </div>
-      ))}
-
-      {chipEntries.filter(([k]) => k === "profiles").map(([, v]) => (
-        <div key="profiles" className={styles.panelSection}>
-          <div className={styles.sectionLabel}>
-            <span className={styles.sectionIcon}>⇒</span> Apply Profiles
-          </div>
-          <Chips value={v} color="#059669" />
-        </div>
-      ))}
-
-      {/* Default / fallback assignment (no rule matched) */}
-      {chipEntries.filter(([k]) => DEFAULT_FIELDS.has(k)).map(([k, v]) => (
-        <div key={k} className={styles.panelSection}>
-          <div className={`${styles.sectionLabel} ${styles.sectionLabelMuted}`}>
-            <span className={styles.sectionIcon}>↩</span> Default{k.includes("profile") ? " Profile" : " Role"}
-          </div>
-          <Chips value={v} color="#6b7280" />
-        </div>
-      ))}
-
-      {/* Other fields */}
+      {/* Other metadata fields (type, template, description, etc.) */}
       {otherEntries.length > 0 && (
         <div className={styles.panelSection}>
           {otherEntries.map(([k, v]) => (
@@ -216,7 +259,18 @@ function DetailPanel({
         </div>
       )}
 
-      {Object.keys(details).filter((k) => k !== "Order").length === 0 && (
+      {/* Rule table */}
+      {policyRules.length > 0 && (
+        <div className={styles.panelSection}>
+          <div className={styles.sectionLabel}>
+            <span className={styles.sectionIcon}>≡</span>
+            Rules ({policyRules.filter((r) => r.order !== "default").length})
+          </div>
+          <RuleTable rules={policyRules} stage={data.stage} />
+        </div>
+      )}
+
+      {policyRules.length === 0 && otherEntries.length === 0 && !data.summary && (
         <p className={styles.panelEmpty}>No additional details.</p>
       )}
     </aside>
@@ -257,8 +311,8 @@ export default function ServiceDetailPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const handleNodeClick = useCallback((nodeId: string, data: DecisionNodeData) => {
-    setSelectedNode((prev) => prev?.id === nodeId ? null : { id: nodeId, data });
+  const handleNodeClick = useCallback((nodeId: string, nodeData: DecisionNodeData) => {
+    setSelectedNode((prev) => prev?.id === nodeId ? null : { id: nodeId, data: nodeData });
   }, []);
 
   return (

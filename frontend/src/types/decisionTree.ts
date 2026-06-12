@@ -35,6 +35,20 @@ export type EvaluationStatus =
  * Data payload attached to each decision tree node.
  * Corresponds to `DecisionNodeData` in the backend.
  */
+/** A single policy rule entry for the drawer rule table. */
+export interface PolicyRule {
+  /** Display order ("1", "2", ..., "default") */
+  order: string;
+  /** Condition expression string, e.g. "Aruba-User-Role EQUALS Employee" */
+  condition?: string;
+  /** Action value: role name(s), profile name(s), method name, etc. */
+  action: string;
+  /** Discriminator for how to render the action */
+  action_type: "role" | "profile" | "default_role" | "default_profile" | "method" | "source" | "posture";
+  /** Optional secondary detail (e.g. profile type, method type) */
+  action_detail?: string;
+}
+
 export interface DecisionNodeData {
   label: string;
   stage: EvaluationStage;
@@ -43,6 +57,8 @@ export interface DecisionNodeData {
   summary?: string;
   /** Raw key/value detail pairs shown in a side panel/tooltip when selected. */
   details: Record<string, string>;
+  /** Ordered list of policy rules for this stage, rendered as a table in the drawer. */
+  policy_rules?: PolicyRule[];
   /** ISO 8601 timestamp, if available. */
   timestamp?: string;
 }

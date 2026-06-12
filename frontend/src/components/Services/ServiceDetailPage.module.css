@@ -84,7 +84,7 @@
 
 /* ── Detail side panel ─────────────────────────────────────────────────── */
 .detailPanel {
-  width: 300px;
+  width: 360px;
   flex-shrink: 0;
   border-left: 1px solid var(--color-border);
   background: var(--color-bg-elevated);
@@ -312,4 +312,98 @@
   font-size: 0.8rem;
   color: var(--color-text-muted);
   margin: 0;
+}
+
+/* ── Rule table ──────────────────────────────────────────────────────────── */
+
+.ruleTableWrapper {
+  overflow-x: auto;
+  margin: 0 -0.875rem;
+  padding: 0 0.875rem;
+}
+
+.ruleTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.75rem;
+  table-layout: auto;
+}
+
+.ruleTableTh {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+  padding: 0.3rem 0.5rem 0.4rem;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.ruleTableRow {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.ruleTableRow:last-child {
+  border-bottom: none;
+}
+
+.ruleTableRowDefault {
+  opacity: 0.75;
+  background: color-mix(in srgb, var(--color-bg) 60%, transparent);
+}
+
+.ruleTableTd {
+  padding: 0.45rem 0.5rem;
+  vertical-align: top;
+}
+
+/* Rule number badge */
+.ruleNum {
+  font-size: 0.65rem;
+  font-weight: 700;
+  font-family: ui-monospace, "Cascadia Code", "Fira Code", monospace;
+  display: inline-block;
+  min-width: 1.2rem;
+  text-align: center;
+}
+
+/* Default/fallback row indicator */
+.defaultBadge {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  display: inline-block;
+  min-width: 1.2rem;
+  text-align: center;
+  cursor: default;
+}
+
+/* Empty condition cell */
+.condEmpty {
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+}
+
+/* Action cell — wrapping chip list */
+.actionCell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+/* Default/fallback chip variant */
+.chipDefault {
+  opacity: 0.8;
+  font-style: italic;
+}
+
+/* Secondary detail text under chip (e.g. profile type) */
+.actionDetail {
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+  width: 100%;
+  margin-top: 0.1rem;
 }

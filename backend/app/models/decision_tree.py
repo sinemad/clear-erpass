@@ -92,6 +92,15 @@ class DecisionNodeData(BaseModel):
             "Rendered in a side panel / tooltip when the node is selected."
         ),
     )
+    policy_rules: list[dict[str, str]] = Field(
+        default_factory=list,
+        description=(
+            "Ordered list of policy rules for this stage. Each entry has: "
+            "order, condition (optional), action, action_type "
+            "(role|profile|default_role|default_profile|method|source). "
+            "Rendered as a rule table in the drawer."
+        ),
+    )
     timestamp: datetime | None = Field(
         default=None,
         description="When this step was evaluated, if available from ClearPass.",

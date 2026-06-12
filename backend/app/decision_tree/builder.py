@@ -342,7 +342,7 @@ def build_service_tree(service: dict[str, Any], policies: dict[str, Any] | None 
         nonlocal current_y
         current_y += max(_STAGE_H, n_children * _RULE_H) + _STAGE_GAP
 
-    logger.info("build_service_tree keys=%s", sorted(service.keys()))
+    logger.debug("build_service_tree keys=%s", sorted(service.keys()))
 
     name = service.get("name", "Unknown Service")
     svc_type = str(service.get("type") or "")
@@ -476,9 +476,10 @@ def build_service_tree(service: dict[str, Any], policies: dict[str, Any] | None 
 
     # ---- Enforcement ----
     enforcement_name = (
-        service.get("enforcement_policy")
+        service.get("enf_policy")
+        or service.get("enforcement_policy")
         or service.get("enforcement_policy_name")
-        or service.get("enforcement_policies")   # some versions use this
+        or service.get("enforcement_policies")
         or service.get("enforcement")
         or ""
     )
@@ -488,7 +489,7 @@ def build_service_tree(service: dict[str, Any], policies: dict[str, Any] | None 
     if isinstance(enforcement_name, dict):
         enforcement_name = enforcement_name.get("name") or ""
     enforcement_name = str(enforcement_name).strip()
-    logger.info("enforcement_name resolved to %r", enforcement_name)
+    logger.debug("enforcement_name resolved to %r", enforcement_name)
     enforcement_obj: dict | None = p.get("enforcement_policy")
     enf_profile_objs: list[dict] = p.get("enforcement_profiles") or []
 

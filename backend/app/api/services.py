@@ -64,7 +64,8 @@ async def get_service_decision_tree(
     role_mapping_name: str = service.get("role_mapping_policy") or ""
     posture_name: str = service.get("posture_policy") or ""
     _enf_raw = (
-        service.get("enforcement_policy")
+        service.get("enf_policy")
+        or service.get("enforcement_policy")
         or service.get("enforcement_policy_name")
         or service.get("enforcement_policies")
         or service.get("enforcement")
@@ -75,7 +76,7 @@ async def get_service_decision_tree(
     if isinstance(_enf_raw, dict):
         _enf_raw = _enf_raw.get("name") or ""
     enforcement_name: str = str(_enf_raw).strip()
-    logger.info("service id=%s enforcement_name=%r service_data=%s", service_id, enforcement_name, {k: v for k, v in service.items() if not isinstance(v, (list, dict))})
+    logger.debug("service id=%s enforcement_name=%r", service_id, enforcement_name)
 
     async def fetch_list(names: list[str], fn) -> list[dict]:
         if not names:

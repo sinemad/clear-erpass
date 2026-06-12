@@ -1,6 +1,7 @@
 import { BrowserRouter, NavLink, Navigate, Route, Routes } from "react-router-dom";
 import SettingsPage from "./components/Settings/SettingsPage";
 import ServicesPage from "./components/Services/ServicesPage";
+import ServiceDetailPage from "./components/Services/ServiceDetailPage";
 import LogsPage from "./components/Logs/LogsPage";
 import { useTheme } from "./hooks/useTheme";
 import styles from "./App.module.css";
@@ -44,6 +45,7 @@ export default function App() {
             <Route path="/" element={<Navigate to="/access-tracker" replace />} />
             <Route path="/access-tracker" element={<Placeholder title="Access Tracker" />} />
             <Route path="/services" element={<ServicesPage />} />
+            <Route path="/services/:id" element={<ServiceDetailPage />} />
             <Route path="/logs" element={<LogsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Routes>

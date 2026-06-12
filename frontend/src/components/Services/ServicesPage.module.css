@@ -57,8 +57,19 @@
   color: var(--color-text);
 }
 
-.table tbody tr:hover {
+.clickableRow {
+  cursor: pointer;
+}
+
+.clickableRow:hover {
   background: var(--color-bg-hover);
+}
+
+.chevron {
+  width: 1.5rem;
+  text-align: right;
+  color: var(--color-text-muted);
+  font-size: 1.1rem;
 }
 
 .nameCell {

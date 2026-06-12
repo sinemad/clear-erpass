@@ -70,11 +70,16 @@ export default function ServicesPage() {
               <th>Name</th>
               <th>Type</th>
               <th>Status</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
             {services.map((svc) => (
-              <tr key={svc.id}>
+              <tr
+                key={svc.id}
+                className={styles.clickableRow}
+                onClick={() => navigate(`/services/${svc.id}`)}
+              >
                 <td className={styles.nameCell}>{svc.name}</td>
                 <td>{svc.type ?? "—"}</td>
                 <td>
@@ -86,6 +91,7 @@ export default function ServicesPage() {
                     <span className={styles.badgeDisabled}>Disabled</span>
                   )}
                 </td>
+                <td className={styles.chevron}>›</td>
               </tr>
             ))}
           </tbody>

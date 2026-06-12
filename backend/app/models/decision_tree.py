@@ -133,6 +133,23 @@ class DecisionEdge(BaseModel):
     )
 
 
+class ServiceTree(BaseModel):
+    """Structural decision tree derived from a ClearPass service definition.
+
+    Unlike DecisionTree (which represents a specific Access Tracker record
+    traversal), ServiceTree is a static blueprint of the policy stages
+    configured for the service. All nodes carry status=NOT_EVALUATED because
+    no specific request has been evaluated — the tree shows what *could*
+    happen, not what *did* happen.
+    """
+
+    service_id: str
+    service_name: str
+    service_type: str | None = None
+    nodes: list[DecisionNode]
+    edges: list[DecisionEdge]
+
+
 class DecisionTree(BaseModel):
     """Full decision tree for a single Access Tracker record.
 

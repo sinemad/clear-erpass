@@ -68,6 +68,21 @@ export type DecisionEdge = Edge<{ order: number }> & {
 };
 
 /**
+ * Structural decision tree for a ClearPass service definition.
+ * Corresponds to `ServiceTree` in the backend.
+ *
+ * Returned by `GET /api/services/{serviceId}/decision-tree`.
+ * All nodes have status=not_evaluated — this is a blueprint, not a traversal.
+ */
+export interface ServiceTree {
+  service_id: string;
+  service_name: string;
+  service_type?: string | null;
+  nodes: DecisionNode[];
+  edges: DecisionEdge[];
+}
+
+/**
  * Full decision tree response for a single Access Tracker record.
  * Corresponds to `DecisionTree` in the backend.
  *

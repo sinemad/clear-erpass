@@ -201,6 +201,20 @@
   font-style: italic;
 }
 
+/* Evaluation mode line in detail panel */
+.algoLine {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  padding: 0.15rem 0.5rem;
+  border-radius: 10px;
+  display: inline-block;
+}
+
 /* Translation warning flag inline with section label */
 .xlateFlag {
   margin-left: 0.4rem;

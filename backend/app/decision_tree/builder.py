@@ -277,17 +277,23 @@ def _policy_details(obj: dict[str, Any], *skip_keys: str) -> dict[str, str]:
 from app.decision_tree.attribute_labels import make_question_label
 
 
+def _eval_mode(policy_obj: dict | None) -> str:
+    """Return 'First Match' or 'All Match' based on rule_combine_algo."""
+    if not policy_obj:
+        return "First Match"
+    algo = str(policy_obj.get("rule_combine_algo") or "OR").upper()
+    return "All Match" if "AND" in algo else "First Match"
+
+
 def build_service_tree(service: dict[str, Any], policies: dict[str, Any] | None = None) -> ServiceTree:
-    """Build a binary decision tree for a ClearPass service.
+    """Build a symmetric binary decision tree for a ClearPass service.
 
     Layout
     ------
-    The graph is a vertical decision tree:
-    - Question nodes (conditions) are on the left spine (x=0), stacked top-to-bottom.
-    - "Yes / matched" outcomes branch to the RIGHT (x=_OUT_X) at the same y.
-    - "No / no match" edges continue DOWN the spine to the next question.
-    - Default/fallback outcomes appear on the spine when no rule matches.
-    - The Access Decision (Accept) sits at the bottom of the spine.
+    Questions (conditions) sit on the left spine (x=0).
+    ALL outcomes — both "Yes/matched" and "default/no-match" — branch to the
+    RIGHT (x=_OUT_X) so the graph is visually symmetric.
+    A thin "phase separator" node acts as a merge/join between sections.
     """
     p = policies or {}
     nodes: list[DecisionNode] = []
@@ -295,13 +301,10 @@ def build_service_tree(service: dict[str, Any], policies: dict[str, Any] | None 
     _ec = 0
     current_y = 0
 
-    _Q_X = 0       # question/spine x
-    _OUT_X = 420   # yes-branch outcome x
+    _Q_X = 0       # question spine
+    _OUT_X = 420   # all outcome nodes
     _Y_STEP = 160  # vertical step between spine nodes
-
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
+    _SEP_STEP = 70 # step for thin phase-separator nodes
 
     def _edge(src: str, tgt: str, label: str | None = None,
               src_handle: str | None = None) -> DecisionEdge:
@@ -315,17 +318,19 @@ def build_service_tree(service: dict[str, Any], policies: dict[str, Any] | None 
 
     def _question(nid: str, label: str, stage: EvaluationStage,
                   raw_cond: str | None = None, needs_xlat: bool = False,
-                  summary: str | None = None) -> DecisionNode:
+                  algo: str | None = None) -> DecisionNode:
         d: dict[str, str] = {}
         if raw_cond:
             d["condition"] = raw_cond
         if needs_xlat:
             d["needs_translation"] = "true"
+        if algo:
+            d["algo"] = algo
         return DecisionNode(
             id=nid, type="questionNode",
             position=Position(x=_Q_X, y=current_y),
             data=DecisionNodeData(
-                label=label, stage=stage, summary=summary,
+                label=label, stage=stage,
                 status=EvaluationStatus.NOT_EVALUATED, details=d,
             ),
         )
@@ -344,12 +349,23 @@ def build_service_tree(service: dict[str, Any], policies: dict[str, Any] | None 
             ),
         )
 
+    def _separator(nid: str, label: str, stage: EvaluationStage) -> DecisionNode:
+        """Thin merge/join node that separates two evaluation phases."""
+        return DecisionNode(
+            id=nid, type="phaseNode",
+            position=Position(x=_Q_X, y=current_y),
+            data=DecisionNodeData(
+                label=label, stage=stage,
+                status=EvaluationStatus.NOT_EVALUATED, details={},
+            ),
+        )
+
     # ------------------------------------------------------------------
     logger.debug("build_service_tree keys=%s", sorted(service.keys()))
     name = service.get("name", "Unknown Service")
     svc_type = str(service.get("type") or "")
 
-    # ── Service header (start node, not a question) ────────────────────
+    # ── Service header ─────────────────────────────────────────────────
     svc_details: dict[str, str] = {}
     if svc_type:
         svc_details["type"] = svc_type
@@ -374,11 +390,12 @@ def build_service_tree(service: dict[str, Any], policies: dict[str, Any] | None 
     if auth_method_names or auth_source_names:
         methods = _fmt_list(auth_method_names) or _fmt_list(auth_source_names)
         q = _question("auth_q", "Authentication successful?",
-                      EvaluationStage.AUTHENTICATION, summary=methods or None)
+                      EvaluationStage.AUTHENTICATION)
+        if methods:
+            q.data.summary = methods
         nodes.append(q)
         edges.append(_edge(prev_spine, "auth_q"))
 
-        # Auth fail → Reject outcome on the right
         nodes.append(_outcome("auth_reject", "Reject",
                               EvaluationStage.AUTHENTICATION, "reject"))
         edges.append(_edge("auth_q", "auth_reject", label="No", src_handle="right"))
@@ -390,13 +407,12 @@ def build_service_tree(service: dict[str, Any], policies: dict[str, Any] | None 
     role_policy_name = service.get("role_mapping_policy") or service.get("role_policy") or ""
     role_mapping_obj: dict | None = p.get("role_mapping")
     assigned_roles: list[str] = []
-
-    role_yes_out_ids: list[str] = []  # Yes-branch role outcomes — also connect to enforcement
+    all_role_out_ids: list[str] = []  # all role outcomes (Yes + default) → connect to enforcement
 
     if role_policy_name:
+        rm_algo = _eval_mode(role_mapping_obj)
         rm_rules: list[dict] = (role_mapping_obj.get("rules") or []) if role_mapping_obj else []
-
-        last_rm_q: str = prev_spine
+        last_rm_q = prev_spine
 
         for i, rule in enumerate(rm_rules):
             conditions = rule.get("conditions") or rule.get("condition") or []
@@ -419,7 +435,8 @@ def build_service_tree(service: dict[str, Any], policies: dict[str, Any] | None 
             q_label, needs_xlat = make_question_label(cond_str) if cond_str else (f"Rule {i + 1}?", False)
             qid = f"rm_q_{i}"
             nodes.append(_question(qid, q_label, EvaluationStage.ROLE_MAPPING,
-                                   raw_cond=cond_str, needs_xlat=needs_xlat))
+                                   raw_cond=cond_str, needs_xlat=needs_xlat,
+                                   algo=rm_algo if i == 0 else None))
 
             if i == 0:
                 edges.append(_edge(prev_spine, qid,
@@ -427,12 +444,11 @@ def build_service_tree(service: dict[str, Any], policies: dict[str, Any] | None 
             else:
                 edges.append(_edge(f"rm_q_{i - 1}", qid, label="No", src_handle="bottom"))
 
-            # Yes → role outcome (right side)
             if roles_str:
                 oid = f"rm_out_{i}"
                 nodes.append(_outcome(oid, roles_str, EvaluationStage.ROLE_MAPPING, "role"))
                 edges.append(_edge(qid, oid, label="Yes", src_handle="right"))
-                role_yes_out_ids.append(oid)
+                all_role_out_ids.append(oid)
                 for r in roles_str.split(","):
                     r = r.strip()
                     if r and r not in assigned_roles:
@@ -441,7 +457,7 @@ def build_service_tree(service: dict[str, Any], policies: dict[str, Any] | None 
             last_rm_q = qid
             current_y += _Y_STEP
 
-        # Default role — sits on the spine (passthrough to enforcement)
+        # Default role — ALSO on the right for symmetry
         dr_raw = (role_mapping_obj or {}).get("default_role") or \
                  (role_mapping_obj or {}).get("default_role_name") or \
                  (role_mapping_obj or {}).get("fallback_role")
@@ -449,14 +465,26 @@ def build_service_tree(service: dict[str, Any], policies: dict[str, Any] | None 
             dr = _extract_name(dr_raw) if isinstance(dr_raw, dict) else str(dr_raw)
             if dr:
                 nodes.append(_outcome("rm_default", dr, EvaluationStage.ROLE_MAPPING,
-                                      "default_role", x=_Q_X))
+                                      "default_role"))  # x=_OUT_X — right side, symmetric
                 edges.append(_edge(last_rm_q, "rm_default",
                                    label="No match" if rm_rules else None,
                                    src_handle="bottom" if rm_rules else None))
+                all_role_out_ids.append("rm_default")
                 if dr not in assigned_roles:
                     assigned_roles.append(dr)
-                prev_spine = "rm_default"
                 current_y += _Y_STEP
+
+        # Phase separator — merge point between role mapping and enforcement
+        if all_role_out_ids:
+            nodes.append(_separator("rm_sep", "Enforcement", EvaluationStage.ENFORCEMENT))
+            # Connect all role outcomes to the separator (from their bottom handles)
+            for rid in all_role_out_ids:
+                edges.append(_edge(rid, "rm_sep", src_handle="bottom"))
+            # Also connect spine (last question) if no default was placed
+            if not dr_raw:
+                edges.append(_edge(last_rm_q, "rm_sep", src_handle="bottom"))
+            prev_spine = "rm_sep"
+            current_y += _SEP_STEP
         else:
             prev_spine = last_rm_q if rm_rules else prev_spine
 
@@ -475,9 +503,10 @@ def build_service_tree(service: dict[str, Any], policies: dict[str, Any] | None 
 
     if enforcement_name:
         enforcement_obj: dict | None = p.get("enforcement_policy")
+        enf_algo = _eval_mode(enforcement_obj)
         enf_rules: list[dict] = (enforcement_obj.get("rules") or []) if enforcement_obj else []
-
-        last_enf_q: str = prev_spine
+        all_enf_out_ids: list[str] = []
+        last_enf_q = prev_spine
 
         for i, rule in enumerate(enf_rules):
             conditions = rule.get("conditions") or rule.get("condition") or []
@@ -493,14 +522,12 @@ def build_service_tree(service: dict[str, Any], policies: dict[str, Any] | None 
             q_label, needs_xlat = make_question_label(cond_str) if cond_str else (f"Rule {i + 1}?", False)
             qid = f"enf_q_{i}"
             nodes.append(_question(qid, q_label, EvaluationStage.ENFORCEMENT,
-                                   raw_cond=cond_str, needs_xlat=needs_xlat))
+                                   raw_cond=cond_str, needs_xlat=needs_xlat,
+                                   algo=enf_algo if i == 0 else None))
 
             if i == 0:
                 edges.append(_edge(prev_spine, qid,
-                                   src_handle="bottom" if prev_spine in ("auth_q",) else None))
-                # All role Yes-branch outcomes also converge here — enforcement always runs
-                for rid in role_yes_out_ids:
-                    edges.append(_edge(rid, qid, src_handle="bottom"))
+                                   src_handle="bottom" if prev_spine in ("auth_q", "rm_sep") else None))
             else:
                 edges.append(_edge(f"enf_q_{i - 1}", qid, label="No", src_handle="bottom"))
 
@@ -508,23 +535,34 @@ def build_service_tree(service: dict[str, Any], policies: dict[str, Any] | None 
                 oid = f"enf_out_{i}"
                 nodes.append(_outcome(oid, prof_str, EvaluationStage.ENFORCEMENT, "profile"))
                 edges.append(_edge(qid, oid, label="Yes", src_handle="right"))
+                all_enf_out_ids.append(oid)
 
             last_enf_q = qid
             current_y += _Y_STEP
 
-        # Default enforcement profile — on the spine
+        # Default enforcement profile — also on the right for symmetry
         dp_raw = (enforcement_obj or {}).get("default_enforcement_profile") or \
                  (enforcement_obj or {}).get("default_profile")
         if dp_raw:
             dp = _extract_name(dp_raw) if isinstance(dp_raw, dict) else str(dp_raw)
             if dp:
                 nodes.append(_outcome("enf_default", dp, EvaluationStage.ENFORCEMENT,
-                                      "default_profile", x=_Q_X))
+                                      "default_profile"))  # x=_OUT_X — right side
                 edges.append(_edge(last_enf_q, "enf_default",
                                    label="No match" if enf_rules else None,
                                    src_handle="bottom" if enf_rules else None))
-                prev_spine = "enf_default"
+                all_enf_out_ids.append("enf_default")
                 current_y += _Y_STEP
+
+        # Phase separator — merge point before access decision
+        if all_enf_out_ids:
+            nodes.append(_separator("enf_sep", "Access Decision", EvaluationStage.RESULT))
+            for eid in all_enf_out_ids:
+                edges.append(_edge(eid, "enf_sep", src_handle="bottom"))
+            if not dp_raw:
+                edges.append(_edge(last_enf_q, "enf_sep", src_handle="bottom"))
+            prev_spine = "enf_sep"
+            current_y += _SEP_STEP
         else:
             prev_spine = last_enf_q if enf_rules else prev_spine
 

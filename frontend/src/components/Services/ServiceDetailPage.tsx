@@ -122,9 +122,10 @@ function DetailPanel({
   const details = data.details as Record<string, string>;
   const rawCondition = details["condition"];
   const needsTranslation = details["needs_translation"] === "true";
+  const algo = details["algo"];
 
   // Fields to show in the info section (skip internal keys)
-  const skipKeys = new Set(["condition", "needs_translation"]);
+  const skipKeys = new Set(["condition", "needs_translation", "algo"]);
   const infoEntries = Object.entries(details).filter(([k]) => !skipKeys.has(k));
 
   return (
@@ -146,6 +147,13 @@ function DetailPanel({
       {/* Summary line (service type, auth method hint, etc.) */}
       {data.summary && !["role", "default_role", "profile", "default_profile", "accept", "reject"].includes(data.summary) && (
         <p className={styles.panelSummary}>{data.summary}</p>
+      )}
+
+      {/* Evaluation mode badge */}
+      {algo && (
+        <p className={styles.panelSummary}>
+          <span className={styles.algoLine}>Evaluation: {algo}</span>
+        </p>
       )}
 
       {/* Raw condition for question nodes */}

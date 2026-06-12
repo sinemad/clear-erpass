@@ -64,6 +64,7 @@ function DecisionNodeComponent({ data, selected }: NodeProps<DecisionNodeData>) 
 function QuestionNodeComponent({ data, selected }: NodeProps<DecisionNodeData>) {
   const color = STAGE_COLOR[data.stage] ?? "#6b7280";
   const needsTranslation = data.details?.["needs_translation"] === "true";
+  const algo = data.details?.["algo"];
 
   return (
     <div
@@ -72,9 +73,14 @@ function QuestionNodeComponent({ data, selected }: NodeProps<DecisionNodeData>) 
     >
       <Handle type="target" position={Position.Top} id="top" className={styles.handle} />
 
-      {/* Stage label */}
-      <div className={styles.questionStageTag} style={{ color }}>
-        {STAGE_LABEL[data.stage] ?? data.stage}
+      {/* Stage label + algo badge */}
+      <div className={styles.questionStageRow}>
+        <div className={styles.questionStageTag} style={{ color }}>
+          {STAGE_LABEL[data.stage] ?? data.stage}
+        </div>
+        {algo && (
+          <span className={styles.algoBadge} title={`Evaluation mode: ${algo}`}>{algo}</span>
+        )}
       </div>
 
       {/* Condition question */}
@@ -141,6 +147,25 @@ function OutcomeNodeComponent({ data, selected }: NodeProps<DecisionNodeData>) {
 }
 
 // ---------------------------------------------------------------------------
+// Phase separator node  (type="phaseNode")
+// A thin horizontal rule that acts as a visual merge/join between sections.
+// ---------------------------------------------------------------------------
+
+function PhaseNodeComponent({ data }: NodeProps<DecisionNodeData>) {
+  const color = STAGE_COLOR[data.stage] ?? "#6b7280";
+  return (
+    <div className={styles.phaseNode} style={{ borderColor: color }}>
+      <Handle type="target" position={Position.Top} id="top" className={styles.handleInvis} />
+      <div className={styles.phaseLabel} style={{ color }}>
+        <span className={styles.phaseArrow}>→</span>
+        {data.label}
+      </div>
+      <Handle type="source" position={Position.Bottom} id="bottom" className={styles.handleInvis} />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Node type registry — must be defined outside the component
 // ---------------------------------------------------------------------------
 
@@ -148,6 +173,7 @@ const NODE_TYPES = {
   decisionNode: DecisionNodeComponent,
   questionNode: QuestionNodeComponent,
   outcomeNode: OutcomeNodeComponent,
+  phaseNode: PhaseNodeComponent,
 };
 
 // ---------------------------------------------------------------------------
@@ -157,14 +183,33 @@ const NODE_TYPES = {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function styleEdge(edge: any) {
   const label = edge.label as string | undefined;
-  // Unlabeled edges from role outcomes → enforcement (continuation)
-  if (!label && (edge.source as string)?.startsWith("rm_out_")) {
+  const src = (edge.source as string) ?? "";
+  const tgt = (edge.target as string) ?? "";
+
+  // Convergence edges — outcomes merging into a phase separator
+  const isConvergence =
+    !label &&
+    (tgt === "rm_sep" || tgt === "enf_sep") &&
+    (src.startsWith("rm_out_") || src.startsWith("enf_out_") ||
+     src === "rm_default" || src === "enf_default");
+
+  if (isConvergence) {
     return {
       ...edge,
-      style: { stroke: "#4b5563", strokeWidth: 1, strokeDasharray: "3 4" },
+      style: { stroke: "#9ca3af", strokeWidth: 1, strokeDasharray: "3 4" },
       type: "smoothstep",
     };
   }
+
+  // Continuation edges — phase separator → next section
+  if (!label && (src === "rm_sep" || src === "enf_sep")) {
+    return {
+      ...edge,
+      style: { stroke: "#9ca3af", strokeWidth: 1.5 },
+      type: "straight",
+    };
+  }
+
   if (label === "Yes") {
     return {
       ...edge,

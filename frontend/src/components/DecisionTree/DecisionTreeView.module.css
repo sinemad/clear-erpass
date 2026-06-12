@@ -39,6 +39,35 @@
   text-overflow: ellipsis;
 }
 
+/* ── Phase separator node ─────────────────────────────────────────────────── */
+.phaseNode {
+  width: 200px;
+  padding: 5px 12px;
+  border: 1px solid;
+  border-radius: 20px;
+  background: var(--color-bg-elevated);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+  opacity: 0.75;
+}
+
+.phaseLabel {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.phaseArrow {
+  font-size: 0.7rem;
+  opacity: 0.7;
+}
+
 /* ── Question node (condition / decision diamond equivalent) ─────────────── */
 .questionNode {
   width: 260px;
@@ -56,13 +85,34 @@
   box-shadow: 0 0 0 2px var(--color-accent), 0 2px 8px rgba(0, 0, 0, 0.12);
 }
 
+/* Row with stage tag + algo badge side by side */
+.questionStageRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
 .questionStageTag {
   font-size: 0.58rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  margin-bottom: 4px;
   opacity: 0.8;
+}
+
+/* "First Match" / "All Match" evaluation mode badge */
+.algoBadge {
+  font-size: 0.55rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.1rem 0.4rem;
+  border-radius: 10px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  white-space: nowrap;
 }
 
 .questionLabel {

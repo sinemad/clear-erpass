@@ -415,6 +415,7 @@ def build_service_tree(service: dict[str, Any], policies: dict[str, Any] | None 
             roles_assigned = (
                 rule.get("roles")
                 or rule.get("role")
+                or rule.get("role_name")
                 or rule.get("role_names")
                 or rule.get("assigned_roles")
                 or []
@@ -424,6 +425,18 @@ def build_service_tree(service: dict[str, Any], policies: dict[str, Any] | None 
                 roles_assigned = [roles_assigned]
             cond_str = _fmt_conditions(conditions)
             roles_str = _fmt_list(roles_assigned)
+
+            # Fallback: capture any non-condition, non-system fields we don't recognise
+            # so the drawer always shows the outcome even if the field name is unexpected
+            if not roles_str:
+                _known = {"id", "conditions", "condition", "roles", "role", "role_name",
+                          "role_names", "assigned_roles", "rule_combine_algo"}
+                for k, v in rule.items():
+                    if k not in _known and v:
+                        roles_str = _fmt_list(v)
+                        logger.debug("role_mapping rule[%d] using fallback field %r = %r", i, k, roles_str)
+                        break
+
             label = cond_str or f"Rule {i + 1}"
             summary = roles_str or None
             child_details: dict[str, str] = {"Order": str(i + 1)}

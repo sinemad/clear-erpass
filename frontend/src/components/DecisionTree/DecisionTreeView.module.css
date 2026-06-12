@@ -80,6 +80,45 @@
   background: var(--color-bg-hover) !important;
 }
 
+/* Inline condition expression inside rule node label */
+.condLabel {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 3px;
+  line-height: 1.5;
+}
+
+.condLabelAttr {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.condLabelOp {
+  font-family: ui-monospace, "Cascadia Code", "Fira Code", monospace;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #92400e;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  padding: 0.05rem 0.3rem;
+  border-radius: 3px;
+}
+
+[data-theme="dark"] .condLabelOp {
+  color: #fcd34d;
+  background: rgba(252, 211, 77, 0.12);
+  border-color: rgba(252, 211, 77, 0.3);
+}
+
+.condLabelVal {
+  font-family: ui-monospace, "Cascadia Code", "Fira Code", monospace;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--color-accent);
+}
+
 /* Outcome chips inside rule nodes */
 .nodeChipRow {
   display: flex;

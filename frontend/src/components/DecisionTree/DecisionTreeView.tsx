@@ -70,6 +70,39 @@ function DecisionNodeComponent({ data, selected }: NodeProps<DecisionNodeData>) 
 }
 
 // ---------------------------------------------------------------------------
+// Condition label — parses "Attr OPERATOR Value" into styled spans
+// ---------------------------------------------------------------------------
+
+const OPERATORS = [
+  "NOT_EQUALS", "EQUALS", "CONTAINS", "STARTS_WITH", "ENDS_WITH",
+  "MATCHES_REGEX", "GREATER_THAN", "LESS_THAN",
+];
+
+const OP_SYMBOL: Record<string, string> = {
+  EQUALS: "=", NOT_EQUALS: "≠", CONTAINS: "∋",
+  STARTS_WITH: "^=", ENDS_WITH: "$=",
+  MATCHES_REGEX: "~", GREATER_THAN: ">", LESS_THAN: "<",
+};
+
+function ConditionLabel({ text }: { text: string }) {
+  for (const op of OPERATORS) {
+    const idx = text.indexOf(` ${op} `);
+    if (idx !== -1) {
+      const attr = text.slice(0, idx);
+      const val = text.slice(idx + op.length + 2);
+      return (
+        <span className={styles.condLabel}>
+          <span className={styles.condLabelAttr}>{attr}</span>
+          <span className={styles.condLabelOp}>{OP_SYMBOL[op] ?? op}</span>
+          <span className={styles.condLabelVal}>{val}</span>
+        </span>
+      );
+    }
+  }
+  return <span>{text}</span>;
+}
+
+// ---------------------------------------------------------------------------
 // Policy rule sub-node component
 // ---------------------------------------------------------------------------
 
@@ -95,7 +128,9 @@ function PolicyRuleNodeComponent({ data, selected }: NodeProps<DecisionNodeData>
       <Handle type="target" position={Position.Left} className={styles.handle} />
 
       {order && <div className={styles.ruleOrder}>Rule {order}</div>}
-      <div className={styles.ruleLabel}>{data.label}</div>
+      <div className={styles.ruleLabel}>
+        <ConditionLabel text={data.label} />
+      </div>
 
       {outcomeValue && outcomeField ? (
         <div className={styles.nodeChipRow}>

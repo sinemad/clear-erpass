@@ -154,10 +154,32 @@ function PolicyRuleNodeComponent({ data, selected }: NodeProps<DecisionNodeData>
   );
 }
 
+// ---------------------------------------------------------------------------
+// Enforcement profile output node
+// ---------------------------------------------------------------------------
+
+function EnfProfileNodeComponent({ data, selected }: NodeProps<DecisionNodeData>) {
+  const color = "#059669"; // enforcement green
+
+  return (
+    <div
+      className={`${styles.profileNode} ${selected ? styles.selected : ""}`}
+      style={{ borderColor: color }}
+    >
+      <Handle type="target" position={Position.Left} className={styles.handle} />
+
+      <div className={styles.profileTag} style={{ color }}>⇒ Profile</div>
+      <div className={styles.profileLabel}>{data.label}</div>
+      {data.summary && <div className={styles.profileType}>{data.summary}</div>}
+    </div>
+  );
+}
+
 // Must be defined outside the component to avoid re-creating on each render.
 const NODE_TYPES = {
   decisionNode: DecisionNodeComponent,
   policyRuleNode: PolicyRuleNodeComponent,
+  enfProfileNode: EnfProfileNodeComponent,
 };
 
 // ---------------------------------------------------------------------------

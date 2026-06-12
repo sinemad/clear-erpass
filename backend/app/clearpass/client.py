@@ -113,6 +113,10 @@ class ClearPassClient:
         logger.debug("Fetching posture policy: %r", name)
         return self._fetch_by_name("get_posture_policy_name_by_name", name)
 
+    def get_enforcement_profile(self, name: str) -> dict[str, Any] | None:
+        logger.debug("Fetching enforcement profile: %r", name)
+        return self._fetch_by_name("get_enforcement_profile_name_by_name", name)
+
     # ------------------------------------------------------------------
     # Services
     # ------------------------------------------------------------------

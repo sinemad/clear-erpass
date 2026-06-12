@@ -193,6 +193,44 @@
   text-overflow: ellipsis;
 }
 
+/* Enforcement profile output node */
+.profileNode {
+  width: 200px;
+  padding: 8px 12px 10px;
+  background: var(--color-bg-elevated);
+  border: 1px solid;
+  border-radius: 6px;
+  box-shadow: none;
+  cursor: default;
+  transition: box-shadow 0.15s;
+}
+
+.profileNode.selected {
+  box-shadow: 0 0 0 2px var(--color-accent);
+}
+
+.profileTag {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 3px;
+}
+
+.profileLabel {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text);
+  line-height: 1.3;
+}
+
+.profileType {
+  font-size: 0.68rem;
+  color: var(--color-text-muted);
+  margin-top: 3px;
+  font-style: italic;
+}
+
 /* Edge color */
 :global(.react-flow__edge-path) {
   stroke: var(--color-border);

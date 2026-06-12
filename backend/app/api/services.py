@@ -63,7 +63,9 @@ async def get_service_decision_tree(
     auth_source_names: list[str] = service.get("authentication_sources") or []
     role_mapping_name: str = service.get("role_mapping_policy") or ""
     posture_name: str = service.get("posture_policy") or ""
-    enforcement_name: str = service.get("enforcement_policy") or ""
+    enforcement_name: str = (
+        service.get("enforcement_policy") or service.get("enforcement_policy_name") or ""
+    )
 
     async def fetch_list(names: list[str], fn) -> list[dict]:
         if not names:
@@ -84,12 +86,32 @@ async def get_service_decision_tree(
         )
     )
 
+    # Extract enforcement profile names from the fetched enforcement policy rules
+    enf_profile_names: list[str] = []
+    if enforcement_data:
+        for rule in enforcement_data.get("rules") or []:
+            rp = (
+                rule.get("enforcement_profiles")
+                or rule.get("profiles")
+                or rule.get("profile")
+                or []
+            )
+            if isinstance(rp, (str, dict)):
+                rp = [rp]
+            for item in rp:
+                name = item.get("name") if isinstance(item, dict) else str(item)
+                if name and name not in enf_profile_names:
+                    enf_profile_names.append(name)
+
+    enforcement_profiles_data = await fetch_list(enf_profile_names, client.get_enforcement_profile)
+
     policies = {
         "auth_methods": auth_methods_data,
         "auth_sources": auth_sources_data,
         "role_mapping": role_mapping_data,
         "posture_policy": posture_data,
         "enforcement_policy": enforcement_data,
+        "enforcement_profiles": enforcement_profiles_data,
     }
 
     tree = build_service_tree(service, policies)

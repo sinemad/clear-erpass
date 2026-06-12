@@ -212,11 +212,12 @@ def _build_nodes_and_edges(
 # ----------------------------------------------------------------------
 
 # Layout constants (pixels — React Flow coordinate space)
-_MAIN_X = 0       # x of the main pipeline nodes
-_DETAIL_X = 380   # x of the detail/rule sub-nodes
-_STAGE_H = 90     # approximate rendered height of a main stage node
-_RULE_H = 75      # approximate rendered height of a rule/detail node
-_STAGE_GAP = 60   # vertical gap between stage groups
+_MAIN_X = 0        # x of the main pipeline nodes
+_DETAIL_X = 380    # x of the rule/detail sub-nodes
+_PROFILE_X = 720   # x of enforcement profile output nodes
+_STAGE_H = 90      # approximate rendered height of a main stage node
+_RULE_H = 75       # approximate rendered height of a rule/detail node
+_STAGE_GAP = 60    # vertical gap between stage groups
 
 
 def _fmt_conditions(conditions: Any) -> str:
@@ -472,8 +473,14 @@ def build_service_tree(service: dict[str, Any], policies: dict[str, Any] | None 
         _advance(max(1, len(posture_rules)))
 
     # ---- Enforcement ----
-    enforcement_name = service.get("enforcement_policy") or ""
+    enforcement_name = (
+        service.get("enforcement_policy")
+        or service.get("enforcement_policy_name")
+        or ""
+    )
     enforcement_obj: dict | None = p.get("enforcement_policy")
+    enf_profile_objs: list[dict] = p.get("enforcement_profiles") or []
+
     if enforcement_name:
         enforcement_rules: list[dict] = enforcement_obj.get("rules") or [] if enforcement_obj else []
         enf_details: dict[str, str] = {"policy": enforcement_name}
@@ -481,13 +488,26 @@ def build_service_tree(service: dict[str, Any], policies: dict[str, Any] | None 
             enf_details.update(_policy_details(enforcement_obj, "rules"))
         _add_main("enforcement", "Enforcement", EvaluationStage.ENFORCEMENT,
                   enforcement_name, enf_details, len(enforcement_rules))
+
+        profile_obj_by_name: dict[str, dict] = {
+            obj.get("name", ""): obj for obj in enf_profile_objs if obj.get("name")
+        }
+        profile_y = current_y  # independent y counter for the third column
+
         for i, rule in enumerate(enforcement_rules):
             conditions = rule.get("conditions") or rule.get("condition") or []
-            profiles = rule.get("enforcement_profiles") or rule.get("profiles") or rule.get("profile") or []
-            cond_str = _fmt_conditions(conditions)
-            prof_str = _fmt_list(profiles) if isinstance(profiles, list) else (
-                profiles.get("name", "") if isinstance(profiles, dict) else str(profiles)
+            rule_profiles = (
+                rule.get("enforcement_profiles")
+                or rule.get("profiles")
+                or rule.get("profile")
+                or []
             )
+            if isinstance(rule_profiles, (str, dict)):
+                rule_profiles = [rule_profiles]
+
+            cond_str = _fmt_conditions(conditions)
+            prof_str = _fmt_list(rule_profiles)
+            rule_y = current_y + i * _RULE_H
             label = cond_str or f"Rule {i + 1}"
             enf_child_details: dict[str, str] = {"Order": str(i + 1)}
             if cond_str:
@@ -496,12 +516,43 @@ def build_service_tree(service: dict[str, Any], policies: dict[str, Any] | None 
                 enf_child_details["profiles"] = prof_str
             _add_child(f"enf_rule_{i}", "enforcement", label,
                        EvaluationStage.ENFORCEMENT, prof_str or None, enf_child_details,
-                       current_y + i * _RULE_H)
-        _advance(max(1, len(enforcement_rules)))
+                       rule_y)
 
-    # ---- Result ----
-    _add_main("result", "Result", EvaluationStage.RESULT, None, {}, 0)
-    _advance(0)
+            # Add enforcement profile nodes in the third column
+            for j, rp in enumerate(rule_profiles):
+                prof_name = _extract_name(rp)
+                if not prof_name:
+                    continue
+                prof_node_id = f"enf_profile_{prof_name.replace(' ', '_')}"
+                # Only add each unique profile once
+                if not any(n.id == prof_node_id for n in nodes):
+                    prof_obj = profile_obj_by_name.get(prof_name, {})
+                    prof_type = prof_obj.get("type") or prof_obj.get("profile_type") or ""
+                    prof_details = _policy_details(prof_obj) if prof_obj else {}
+                    nodes.append(DecisionNode(
+                        id=prof_node_id,
+                        type="enfProfileNode",
+                        position=Position(x=_PROFILE_X, y=profile_y),
+                        data=DecisionNodeData(
+                            label=prof_name,
+                            stage=EvaluationStage.ENFORCEMENT,
+                            status=EvaluationStatus.NOT_EVALUATED,
+                            summary=prof_type or None,
+                            details=prof_details,
+                        ),
+                    ))
+                    profile_y += _RULE_H
+                edge_order += 1
+                edges.append(DecisionEdge(
+                    id=f"e{edge_order}",
+                    source=f"enf_rule_{i}",
+                    target=prof_node_id,
+                    order=edge_order,
+                    animated=False,
+                ))
+
+        n_rows = max(len(enforcement_rules), len(enf_profile_objs), 1)
+        _advance(n_rows)
 
     return ServiceTree(
         service_id=str(service.get("id", "")),

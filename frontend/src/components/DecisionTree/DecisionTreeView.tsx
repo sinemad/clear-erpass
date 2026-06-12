@@ -73,9 +73,19 @@ function DecisionNodeComponent({ data, selected }: NodeProps<DecisionNodeData>) 
 // Policy rule sub-node component
 // ---------------------------------------------------------------------------
 
+const CHIP_COLOR: Record<string, string> = {
+  roles: "#0891b2",
+  profiles: "#059669",
+};
+
 function PolicyRuleNodeComponent({ data, selected }: NodeProps<DecisionNodeData>) {
   const color = STAGE_COLOR[data.stage] ?? "#6b7280";
-  const order = (data.details as Record<string, string>)?.["Order"];
+  const details = data.details as Record<string, string>;
+  const order = details?.["Order"];
+  const roles = details?.["roles"];
+  const profiles = details?.["profiles"];
+  const outcomeField = roles ? "roles" : profiles ? "profiles" : null;
+  const outcomeValue = roles ?? profiles ?? null;
 
   return (
     <div
@@ -86,7 +96,23 @@ function PolicyRuleNodeComponent({ data, selected }: NodeProps<DecisionNodeData>
 
       {order && <div className={styles.ruleOrder}>Rule {order}</div>}
       <div className={styles.ruleLabel}>{data.label}</div>
-      {data.summary && <div className={styles.ruleSummary}>{data.summary}</div>}
+
+      {outcomeValue && outcomeField ? (
+        <div className={styles.nodeChipRow}>
+          {outcomeValue.split(",").map((s) => s.trim()).filter(Boolean).map((item) => (
+            <span
+              key={item}
+              className={styles.nodeChip}
+              style={{ color: CHIP_COLOR[outcomeField], borderColor: CHIP_COLOR[outcomeField] }}
+              title={item}
+            >
+              {item}
+            </span>
+          ))}
+        </div>
+      ) : (
+        data.summary && <div className={styles.ruleSummary}>{data.summary}</div>
+      )}
 
       <Handle type="source" position={Position.Right} className={styles.handle} />
     </div>

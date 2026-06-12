@@ -80,6 +80,28 @@
   background: var(--color-bg-hover) !important;
 }
 
+/* Outcome chips inside rule nodes */
+.nodeChipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 5px;
+}
+
+.nodeChip {
+  font-size: 0.62rem;
+  font-weight: 500;
+  padding: 0.12rem 0.4rem;
+  border-radius: 10px;
+  border: 1px solid;
+  background: transparent;
+  line-height: 1.4;
+  white-space: nowrap;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* Policy rule sub-node (smaller card, dashed border, indented) */
 .ruleNode {
   width: 200px;

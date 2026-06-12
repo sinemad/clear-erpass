@@ -33,8 +33,11 @@ unit-tested with fixture JSON files without hitting a real ClearPass server.
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from typing import Any
+
+logger = logging.getLogger("app.decision_tree")
 
 from app.models.decision_tree import (
     DecisionEdge,
@@ -239,9 +242,23 @@ def _fmt_conditions(conditions: Any) -> str:
     return f"{result} (+{remainder} more)" if remainder > 0 else result
 
 
+def _extract_name(item: Any) -> str:
+    """Pull a human-readable name out of a ClearPass object or plain string."""
+    if isinstance(item, str):
+        return item
+    if isinstance(item, dict):
+        return str(
+            item.get("name") or item.get("role_name") or item.get("profile_name")
+            or item.get("label") or next(iter(item.values()), "")
+        )
+    return str(item)
+
+
 def _fmt_list(val: Any) -> str:
     if isinstance(val, list):
-        return ", ".join(str(v) for v in val)
+        return ", ".join(_extract_name(v) for v in val if v)
+    if isinstance(val, dict):
+        return _extract_name(val)
     return str(val) if val else ""
 
 
@@ -393,8 +410,18 @@ def build_service_tree(service: dict[str, Any], policies: dict[str, Any] | None 
         _add_main("role_mapping", "Role Mapping", EvaluationStage.ROLE_MAPPING,
                   role_policy_name, rm_details, len(rules))
         for i, rule in enumerate(rules):
+            logger.debug("role_mapping rule[%d] keys=%s raw=%r", i, list(rule.keys()), rule)
             conditions = rule.get("conditions") or rule.get("condition") or []
-            roles_assigned = rule.get("roles") or rule.get("role") or []
+            roles_assigned = (
+                rule.get("roles")
+                or rule.get("role")
+                or rule.get("role_names")
+                or rule.get("assigned_roles")
+                or []
+            )
+            # Unwrap single-item non-list shapes
+            if isinstance(roles_assigned, (str, dict)):
+                roles_assigned = [roles_assigned]
             cond_str = _fmt_conditions(conditions)
             roles_str = _fmt_list(roles_assigned)
             label = cond_str or f"Rule {i + 1}"

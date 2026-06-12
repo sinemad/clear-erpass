@@ -42,15 +42,15 @@
 /* ── Phase separator node ─────────────────────────────────────────────────── */
 .phaseNode {
   width: 200px;
-  padding: 5px 12px;
-  border: 1px solid;
+  padding: 4px 12px;
+  border: 1px dashed;
   border-radius: 20px;
-  background: var(--color-bg-elevated);
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: default;
-  opacity: 0.75;
+  opacity: 0.6;
 }
 
 .phaseLabel {

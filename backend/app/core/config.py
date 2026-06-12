@@ -12,6 +12,15 @@ class Settings(BaseSettings):
 
     db_path: str = "/data/clearpass_visualizer.db"
 
+    frontend_port: int = 8081
+
+    @property
+    def cors_origins(self) -> list[str]:
+        origins = [f"http://localhost:{self.frontend_port}"]
+        if self.frontend_port != 5173:
+            origins.append("http://localhost:5173")
+        return origins
+
 
 @lru_cache
 def get_settings() -> Settings:

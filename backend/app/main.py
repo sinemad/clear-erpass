@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import access_tracker, config, health, services
+from app.core.config import get_settings
 
 
 @asynccontextmanager
@@ -25,7 +26,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origins=get_settings().cors_origins,
     allow_methods=["GET", "PUT"],
     allow_headers=["*"],
 )

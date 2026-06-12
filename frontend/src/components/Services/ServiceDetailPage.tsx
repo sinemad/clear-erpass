@@ -45,7 +45,18 @@ const STAGE_ICON: Record<EvaluationStage, string> = {
 // -------------------------------------------------------------------------
 // Chip-type fields: rendered as pill chips instead of plain text
 // -------------------------------------------------------------------------
-const CHIP_FIELDS = new Set(["roles", "profiles"]);
+const CHIP_FIELDS = new Set([
+  "roles", "profiles",
+  // Default/fallback assignments (policy-level, not rule-level)
+  "default_role", "default_role_name", "fallback_role",
+  "default_enforcement_profile", "default_profile",
+]);
+
+// Fields that represent a fallback/default rather than an active assignment
+const DEFAULT_FIELDS = new Set([
+  "default_role", "default_role_name", "fallback_role",
+  "default_enforcement_profile", "default_profile",
+]);
 
 // Fields rendered in a code block (monospace, condition expressions)
 const CODE_FIELDS = new Set(["conditions"]);
@@ -183,12 +194,22 @@ function DetailPanel({
         </div>
       ))}
 
+      {/* Default / fallback assignment (no rule matched) */}
+      {chipEntries.filter(([k]) => DEFAULT_FIELDS.has(k)).map(([k, v]) => (
+        <div key={k} className={styles.panelSection}>
+          <div className={`${styles.sectionLabel} ${styles.sectionLabelMuted}`}>
+            <span className={styles.sectionIcon}>↩</span> Default{k.includes("profile") ? " Profile" : " Role"}
+          </div>
+          <Chips value={v} color="#6b7280" />
+        </div>
+      ))}
+
       {/* Other fields */}
       {otherEntries.length > 0 && (
         <div className={styles.panelSection}>
           {otherEntries.map(([k, v]) => (
             <div key={k} className={styles.fieldRow}>
-              <span className={styles.fieldIcon}>{FIELD_ICON[k] ?? "·"}</span>
+              <span className={styles.fieldIcon}>{FIELD_ICON[k] ?? "›"}</span>
               <span className={styles.fieldVal}>{v}</span>
             </div>
           ))}

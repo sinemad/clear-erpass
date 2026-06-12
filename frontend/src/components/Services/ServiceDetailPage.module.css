@@ -196,6 +196,11 @@
   font-size: 0.75rem;
 }
 
+.sectionLabelMuted {
+  opacity: 0.7;
+  font-style: italic;
+}
+
 /* Chips (roles, profiles) */
 .chipRow {
   display: flex;

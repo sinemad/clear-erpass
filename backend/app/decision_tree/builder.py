@@ -397,9 +397,9 @@ def build_service_tree(service: dict[str, Any], policies: dict[str, Any] | None 
             roles_assigned = rule.get("roles") or rule.get("role") or []
             cond_str = _fmt_conditions(conditions)
             roles_str = _fmt_list(roles_assigned)
-            label = f"Rule {i + 1}"
-            summary = f"{cond_str} → {roles_str}" if cond_str and roles_str else (cond_str or roles_str or None)
-            child_details = {}
+            label = cond_str or f"Rule {i + 1}"
+            summary = roles_str or None
+            child_details: dict[str, str] = {"Order": str(i + 1)}
             if cond_str:
                 child_details["conditions"] = cond_str
             if roles_str:
@@ -421,9 +421,13 @@ def build_service_tree(service: dict[str, Any], policies: dict[str, Any] | None 
                   posture_name, posture_details, len(posture_rules))
         for i, rule in enumerate(posture_rules):
             cond_str = _fmt_conditions(rule.get("conditions") or rule.get("condition") or [])
-            _add_child(f"posture_rule_{i}", "posture", f"Rule {i + 1}",
-                       EvaluationStage.POSTURE, cond_str or None,
-                       {k: str(v) for k, v in rule.items() if v and k not in ("conditions",)},
+            extra = {k: str(v) for k, v in rule.items() if v and k not in ("conditions",)}
+            posture_child_details: dict[str, str] = {"Order": str(i + 1), **extra}
+            if cond_str:
+                posture_child_details["conditions"] = cond_str
+            _add_child(f"posture_rule_{i}", "posture", cond_str or f"Rule {i + 1}",
+                       EvaluationStage.POSTURE, None,
+                       posture_child_details,
                        current_y + i * _RULE_H)
         _advance(max(1, len(posture_rules)))
 
@@ -444,15 +448,14 @@ def build_service_tree(service: dict[str, Any], policies: dict[str, Any] | None 
             prof_str = _fmt_list(profiles) if isinstance(profiles, list) else (
                 profiles.get("name", "") if isinstance(profiles, dict) else str(profiles)
             )
-            label = f"Rule {i + 1}"
-            summary = f"{cond_str} → {prof_str}" if cond_str and prof_str else (cond_str or prof_str or None)
-            child_details = {}
+            label = cond_str or f"Rule {i + 1}"
+            enf_child_details: dict[str, str] = {"Order": str(i + 1)}
             if cond_str:
-                child_details["conditions"] = cond_str
+                enf_child_details["conditions"] = cond_str
             if prof_str:
-                child_details["profiles"] = prof_str
+                enf_child_details["profiles"] = prof_str
             _add_child(f"enf_rule_{i}", "enforcement", label,
-                       EvaluationStage.ENFORCEMENT, summary, child_details,
+                       EvaluationStage.ENFORCEMENT, prof_str or None, enf_child_details,
                        current_y + i * _RULE_H)
         _advance(max(1, len(enforcement_rules)))
 

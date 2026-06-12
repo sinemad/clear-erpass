@@ -81,6 +81,10 @@ export type DecisionEdge = Edge<{ order: number }> & {
   order: number;
   /** Whether this edge is on the actual traversal path for this record. */
   animated: boolean;
+  /** Source handle id — "right" for Yes branch, "bottom" for No/spine. */
+  sourceHandle?: string | null;
+  /** Target handle id. */
+  targetHandle?: string | null;
 };
 
 /**

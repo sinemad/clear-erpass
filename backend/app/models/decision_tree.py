@@ -127,7 +127,7 @@ class DecisionEdge(BaseModel):
     target: str
     label: str | None = Field(
         default=None,
-        description="Optional edge label, e.g. 'matched' / 'no match -> next rule'",
+        description="Optional edge label, e.g. 'Yes' / 'No'",
     )
     order: int = Field(
         ...,
@@ -139,6 +139,14 @@ class DecisionEdge(BaseModel):
     animated: bool = Field(
         default=False,
         description="Whether this edge is on the actual traversal path for this record.",
+    )
+    sourceHandle: str | None = Field(
+        default=None,
+        description="React Flow source handle id ('right' for Yes, 'bottom' for No spine).",
+    )
+    targetHandle: str | None = Field(
+        default=None,
+        description="React Flow target handle id.",
     )
 
 

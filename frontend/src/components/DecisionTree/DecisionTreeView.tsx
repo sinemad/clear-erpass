@@ -8,11 +8,11 @@ import ReactFlow, {
 } from "reactflow";
 import "reactflow/dist/style.css";
 
-import type { DecisionNodeData, EvaluationStage, EvaluationStatus } from "../../types/decisionTree";
+import type { DecisionNodeData, EvaluationStage } from "../../types/decisionTree";
 import styles from "./DecisionTreeView.module.css";
 
 // ---------------------------------------------------------------------------
-// Stage metadata
+// Stage colours
 // ---------------------------------------------------------------------------
 
 const STAGE_COLOR: Record<EvaluationStage, string> = {
@@ -26,207 +26,163 @@ const STAGE_COLOR: Record<EvaluationStage, string> = {
 };
 
 const STAGE_LABEL: Record<EvaluationStage, string> = {
-  service_match: "Service Match",
-  authentication: "Authentication",
-  authorization: "Authorization",
+  service_match: "Service",
+  authentication: "Auth",
+  authorization: "Authz",
   role_mapping: "Role Mapping",
   posture: "Posture",
   enforcement: "Enforcement",
   result: "Result",
 };
 
-function resolvedColor(stage: EvaluationStage, status: EvaluationStatus): string {
-  if (stage === "result") {
-    if (status === "passed" || status === "matched") return "#059669";
-    if (status === "failed" || status === "not_matched" || status === "error") return "#dc2626";
-  }
-  return STAGE_COLOR[stage] ?? "#6b7280";
-}
-
 // ---------------------------------------------------------------------------
-// Custom node component
+// Start / service header node  (type="decisionNode", default)
 // ---------------------------------------------------------------------------
 
 function DecisionNodeComponent({ data, selected }: NodeProps<DecisionNodeData>) {
-  const color = resolvedColor(data.stage, data.status);
-  const isStructural = data.status === "not_evaluated";
+  const color = STAGE_COLOR[data.stage] ?? "#6b7280";
 
   return (
     <div
-      className={`${styles.node} ${isStructural ? styles.structural : styles.evaluated} ${selected ? styles.selected : ""}`}
+      className={`${styles.node} ${selected ? styles.selected : ""}`}
       style={{ borderTopColor: color }}
     >
-      <Handle type="target" position={Position.Top} className={styles.handle} />
-
-      <div className={styles.stageTag} style={{ color }}>
-        {STAGE_LABEL[data.stage] ?? data.stage}
-      </div>
+      <Handle type="target" position={Position.Top} id="top" className={styles.handle} />
+      <div className={styles.stageTag} style={{ color }}>{STAGE_LABEL[data.stage] ?? data.stage}</div>
       <div className={styles.label}>{data.label}</div>
       {data.summary && <div className={styles.summary}>{data.summary}</div>}
-
-      <Handle type="source" position={Position.Bottom} className={styles.handle} />
+      <Handle type="source" position={Position.Bottom} id="bottom" className={styles.handle} />
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Condition label — parses "Attr OPERATOR Value" into styled spans
+// Question node  (type="questionNode")
+// Displays a humanised condition with Yes→Right and No→Bottom handles.
 // ---------------------------------------------------------------------------
 
-const OPERATORS = [
-  "NOT_EQUALS", "EQUALS", "CONTAINS", "STARTS_WITH", "ENDS_WITH",
-  "MATCHES_REGEX", "GREATER_THAN", "LESS_THAN",
-];
-
-const OP_SYMBOL: Record<string, string> = {
-  EQUALS: "=", NOT_EQUALS: "≠", CONTAINS: "∋",
-  STARTS_WITH: "^=", ENDS_WITH: "$=",
-  MATCHES_REGEX: "~", GREATER_THAN: ">", LESS_THAN: "<",
-};
-
-function ConditionLabel({ text }: { text: string }) {
-  for (const op of OPERATORS) {
-    const idx = text.indexOf(` ${op} `);
-    if (idx !== -1) {
-      const attr = text.slice(0, idx);
-      const val = text.slice(idx + op.length + 2);
-      return (
-        <span className={styles.condLabel}>
-          <span className={styles.condLabelAttr}>{attr}</span>
-          <span className={styles.condLabelOp}>{OP_SYMBOL[op] ?? op}</span>
-          <span className={styles.condLabelVal}>{val}</span>
-        </span>
-      );
-    }
-  }
-  return <span>{text}</span>;
-}
-
-// ---------------------------------------------------------------------------
-// Policy rule sub-node component
-// ---------------------------------------------------------------------------
-
-const CHIP_COLOR: Record<string, string> = {
-  roles: "#0891b2",
-  profiles: "#059669",
-};
-
-function PolicyRuleNodeComponent({ data, selected }: NodeProps<DecisionNodeData>) {
+function QuestionNodeComponent({ data, selected }: NodeProps<DecisionNodeData>) {
   const color = STAGE_COLOR[data.stage] ?? "#6b7280";
-  const details = data.details as Record<string, string>;
-  const order = details?.["Order"];
-  const roles = details?.["roles"];
-  const profiles = details?.["profiles"];
-  const outcomeField = roles ? "roles" : profiles ? "profiles" : null;
-  const outcomeValue = roles ?? profiles ?? null;
+  const needsTranslation = data.details?.["needs_translation"] === "true";
 
   return (
     <div
-      className={`${styles.ruleNode} ${selected ? styles.selected : ""}`}
-      style={{ borderLeftColor: color }}
-    >
-      <Handle type="target" position={Position.Left} className={styles.handle} />
-
-      {order && <div className={styles.ruleOrder}>Rule {order}</div>}
-      <div className={styles.ruleLabel}>
-        <ConditionLabel text={data.label} />
-      </div>
-
-      {outcomeValue && outcomeField ? (
-        <div className={styles.nodeChipRow}>
-          {outcomeValue.split(",").map((s) => s.trim()).filter(Boolean).map((item) => (
-            <span
-              key={item}
-              className={styles.nodeChip}
-              style={{ color: CHIP_COLOR[outcomeField], borderColor: CHIP_COLOR[outcomeField] }}
-              title={item}
-            >
-              {item}
-            </span>
-          ))}
-        </div>
-      ) : (
-        data.summary && <div className={styles.ruleSummary}>{data.summary}</div>
-      )}
-
-      <Handle type="source" position={Position.Right} className={styles.handle} />
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Inline rule node — sits in the main vertical flow between stage nodes
-// ---------------------------------------------------------------------------
-
-function InlineRuleNodeComponent({ data, selected }: NodeProps<DecisionNodeData>) {
-  const color = STAGE_COLOR[data.stage] ?? "#6b7280";
-  const details = data.details as Record<string, string>;
-  const order = details?.["Order"];
-  const roles = details?.["roles"];
-  const profiles = details?.["profiles"];
-  const outcomeField = roles ? "roles" : profiles ? "profiles" : null;
-  const outcomeValue = roles ?? profiles ?? null;
-
-  return (
-    <div
-      className={`${styles.inlineRule} ${selected ? styles.selected : ""}`}
-      style={{ borderLeftColor: color }}
-    >
-      <Handle type="target" position={Position.Top} className={styles.handle} />
-
-      {order && <div className={styles.ruleOrder} style={{ color }}>{`Rule ${order}`}</div>}
-      <div className={styles.inlineRuleLabel}>
-        <ConditionLabel text={data.label} />
-      </div>
-
-      {outcomeValue && outcomeField && (
-        <div className={styles.nodeChipRow}>
-          {outcomeValue.split(",").map((s) => s.trim()).filter(Boolean).map((item) => (
-            <span
-              key={item}
-              className={styles.nodeChip}
-              style={{ color: CHIP_COLOR[outcomeField], borderColor: CHIP_COLOR[outcomeField] }}
-              title={item}
-            >
-              {item}
-            </span>
-          ))}
-        </div>
-      )}
-
-      <Handle type="source" position={Position.Bottom} className={styles.handle} />
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Enforcement profile output node
-// ---------------------------------------------------------------------------
-
-function EnfProfileNodeComponent({ data, selected }: NodeProps<DecisionNodeData>) {
-  const color = "#059669"; // enforcement green
-
-  return (
-    <div
-      className={`${styles.profileNode} ${selected ? styles.selected : ""}`}
+      className={`${styles.questionNode} ${selected ? styles.questionSelected : ""}`}
       style={{ borderColor: color }}
     >
-      <Handle type="target" position={Position.Left} className={styles.handle} />
+      <Handle type="target" position={Position.Top} id="top" className={styles.handle} />
 
-      <div className={styles.profileTag} style={{ color }}>⇒ Profile</div>
-      <div className={styles.profileLabel}>{data.label}</div>
-      {data.summary && <div className={styles.profileType}>{data.summary}</div>}
+      {/* Stage label */}
+      <div className={styles.questionStageTag} style={{ color }}>
+        {STAGE_LABEL[data.stage] ?? data.stage}
+      </div>
+
+      {/* Condition question */}
+      <div className={styles.questionLabel}>
+        {needsTranslation && (
+          <span className={styles.xlateWarn} title="Attribute not in translation table — add it to attribute_labels.py">⚠</span>
+        )}
+        {data.label}
+      </div>
+
+      {/* Auth method/source hint */}
+      {data.summary && (
+        <div className={styles.questionHint}>{data.summary}</div>
+      )}
+
+      {/* Yes / No handle labels */}
+      <div className={styles.questionHandleLabels}>
+        <span className={styles.handleLabelNo}>↓ No</span>
+        <span className={styles.handleLabelYes}>Yes →</span>
+      </div>
+
+      <Handle type="source" position={Position.Bottom} id="bottom" className={styles.handle} />
+      <Handle type="source" position={Position.Right} id="right" className={styles.handleRight} />
     </div>
   );
 }
 
-// Must be defined outside the component to avoid re-creating on each render.
+// ---------------------------------------------------------------------------
+// Outcome node  (type="outcomeNode")
+// Displays a role, profile, accept, reject, or default outcome.
+// ---------------------------------------------------------------------------
+
+const OUTCOME_META: Record<string, { color: string; icon: string; typeLabel: string }> = {
+  role:            { color: "#0891b2", icon: "◉", typeLabel: "Role" },
+  default_role:    { color: "#6b7280", icon: "↩", typeLabel: "Default Role" },
+  profile:         { color: "#059669", icon: "⇒", typeLabel: "Profile" },
+  default_profile: { color: "#6b7280", icon: "↩", typeLabel: "Default Profile" },
+  reject:          { color: "#dc2626", icon: "✗", typeLabel: "Reject" },
+  accept:          { color: "#059669", icon: "✓", typeLabel: "Accept" },
+};
+
+function OutcomeNodeComponent({ data, selected }: NodeProps<DecisionNodeData>) {
+  const meta = OUTCOME_META[data.summary ?? "role"] ?? OUTCOME_META.role;
+  const isSpine = data.summary === "default_role" || data.summary === "default_profile"
+    || data.summary === "accept";
+
+  return (
+    <div
+      className={`${styles.outcomeNode} ${selected ? styles.outcomeSelected : ""}`}
+      style={{ borderColor: meta.color, background: `${meta.color}14` }}
+    >
+      {/* Left handle for Yes-branch incoming edges; Top handle for spine incoming */}
+      <Handle type="target" position={Position.Left} id="left" className={styles.handleInvis} />
+      <Handle type="target" position={Position.Top} id="top" className={styles.handleInvis} />
+
+      <span className={styles.outcomeIcon} style={{ color: meta.color }}>{meta.icon}</span>
+      <div className={styles.outcomeBody}>
+        <div className={styles.outcomeTypeLabel} style={{ color: meta.color }}>{meta.typeLabel}</div>
+        <div className={styles.outcomeLabel}>{data.label}</div>
+      </div>
+
+      {/* Bottom source for spine passthrough nodes (default role/profile, accept) */}
+      {isSpine && (
+        <Handle type="source" position={Position.Bottom} id="bottom" className={styles.handleInvis} />
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Node type registry — must be defined outside the component
+// ---------------------------------------------------------------------------
+
 const NODE_TYPES = {
   decisionNode: DecisionNodeComponent,
-  policyRuleNode: PolicyRuleNodeComponent,
-  inlineRuleNode: InlineRuleNodeComponent,
-  enfProfileNode: EnfProfileNodeComponent,
+  questionNode: QuestionNodeComponent,
+  outcomeNode: OutcomeNodeComponent,
 };
+
+// ---------------------------------------------------------------------------
+// Edge style helper — applied when converting raw edges to styled edges
+// ---------------------------------------------------------------------------
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function styleEdge(edge: any) {
+  const label = edge.label as string | undefined;
+  if (label === "Yes") {
+    return {
+      ...edge,
+      style: { stroke: "#059669", strokeWidth: 2 },
+      labelStyle: { fill: "#059669", fontWeight: 700, fontSize: "0.7rem" },
+      labelBgStyle: { fill: "var(--color-bg-elevated, #fff)", fillOpacity: 0.9 },
+      labelBgPadding: [4, 6] as [number, number],
+      labelBgBorderRadius: 4,
+    };
+  }
+  if (label === "No" || label === "No match") {
+    return {
+      ...edge,
+      style: { stroke: "#9ca3af", strokeWidth: 1.5, strokeDasharray: "4 3" },
+      labelStyle: { fill: "#9ca3af", fontSize: "0.7rem" },
+      labelBgStyle: { fill: "var(--color-bg-elevated, #fff)", fillOpacity: 0.9 },
+      labelBgPadding: [4, 6] as [number, number],
+      labelBgBorderRadius: 4,
+    };
+  }
+  return edge;
+}
 
 // ---------------------------------------------------------------------------
 // Main view
@@ -245,8 +201,8 @@ export default function DecisionTreeView({ nodes, edges, onNodeClick }: Props) {
       edges={edges}
       nodeTypes={NODE_TYPES}
       fitView
-      fitViewOptions={{ padding: 0.3 }}
-      minZoom={0.25}
+      fitViewOptions={{ padding: 0.25 }}
+      minZoom={0.2}
       maxZoom={2}
       proOptions={{ hideAttribution: true }}
       onNodeClick={(_, node) => onNodeClick?.(node.id, node.data as DecisionNodeData)}

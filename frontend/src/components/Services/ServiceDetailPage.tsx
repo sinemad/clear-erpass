@@ -2,8 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useNodesState, useEdgesState } from "reactflow";
 import { fetchServiceTree } from "../../api/services";
-import type { DecisionNodeData, EvaluationStage, PolicyRule, ServiceTree } from "../../types/decisionTree";
-import DecisionTreeView from "../DecisionTree/DecisionTreeView";
+import type { DecisionNodeData, EvaluationStage, ServiceTree } from "../../types/decisionTree";
+import DecisionTreeView, { styleEdge } from "../DecisionTree/DecisionTreeView";
 import styles from "./ServiceDetailPage.module.css";
 
 type LoadState = "loading" | "ok" | "error";
@@ -95,107 +95,7 @@ function ConditionCell({ value }: { value: string }) {
 // Action cell — chips for roles/profiles, plain text for methods/sources
 // -------------------------------------------------------------------------
 
-const ACTION_COLOR: Record<string, string> = {
-  role: "#0891b2",
-  default_role: "#6b7280",
-  profile: "#059669",
-  default_profile: "#6b7280",
-  method: "#7c3aed",
-  source: "#2563eb",
-  posture: "#d97706",
-};
 
-const ACTION_LABEL: Record<string, string> = {
-  role: "Role",
-  default_role: "Default Role",
-  profile: "Profile",
-  default_profile: "Default Profile",
-  method: "Method",
-  source: "Source",
-  posture: "Check",
-};
-
-function ActionCell({ rule, stageColor }: { rule: PolicyRule; stageColor: string }) {
-  const color = ACTION_COLOR[rule.action_type] ?? stageColor;
-  const isDefault = rule.action_type === "default_role" || rule.action_type === "default_profile";
-
-  if (!rule.action) {
-    return <span className={styles.condEmpty}>—</span>;
-  }
-
-  const items = rule.action.split(",").map((s) => s.trim()).filter(Boolean);
-
-  return (
-    <div className={styles.actionCell}>
-      {items.map((item) => (
-        <span
-          key={item}
-          className={`${styles.chip} ${isDefault ? styles.chipDefault : ""}`}
-          style={{ borderColor: color, color }}
-          title={item}
-        >
-          {item}
-        </span>
-      ))}
-      {rule.action_detail && (
-        <span className={styles.actionDetail}>{rule.action_detail}</span>
-      )}
-    </div>
-  );
-}
-
-// -------------------------------------------------------------------------
-// Rule table
-// -------------------------------------------------------------------------
-
-function RuleTable({ rules, stage }: { rules: PolicyRule[]; stage: EvaluationStage }) {
-  const color = STAGE_COLOR[stage] ?? "#6b7280";
-
-  // Determine which columns to show
-  const hasConditions = rules.some((r) => r.condition);
-  const actionLabel = rules.length > 0 ? (ACTION_LABEL[rules[0].action_type] ?? "Action") : "Action";
-
-  return (
-    <div className={styles.ruleTableWrapper}>
-      <table className={styles.ruleTable}>
-        <thead>
-          <tr>
-            <th className={styles.ruleTableTh} style={{ width: "2rem" }}>#</th>
-            {hasConditions && <th className={styles.ruleTableTh}>Condition</th>}
-            <th className={styles.ruleTableTh}>{actionLabel}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rules.map((rule) => {
-            const isDefault = rule.action_type === "default_role" || rule.action_type === "default_profile";
-            return (
-              <tr
-                key={rule.order}
-                className={`${styles.ruleTableRow} ${isDefault ? styles.ruleTableRowDefault : ""}`}
-              >
-                <td className={styles.ruleTableTd}>
-                  {isDefault ? (
-                    <span className={styles.defaultBadge} title="Applied when no rule matches">↩</span>
-                  ) : (
-                    <span className={styles.ruleNum} style={{ color }}>{rule.order}</span>
-                  )}
-                </td>
-                {hasConditions && (
-                  <td className={styles.ruleTableTd}>
-                    <ConditionCell value={rule.condition ?? ""} />
-                  </td>
-                )}
-                <td className={styles.ruleTableTd}>
-                  <ActionCell rule={rule} stageColor={color} />
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
 
 // -------------------------------------------------------------------------
 // Detail panel — shown when a stage node is clicked
@@ -220,11 +120,12 @@ function DetailPanel({
 }) {
   const color = STAGE_COLOR[data.stage] ?? "#6b7280";
   const details = data.details as Record<string, string>;
-  const policyRules = data.policy_rules ?? [];
+  const rawCondition = details["condition"];
+  const needsTranslation = details["needs_translation"] === "true";
 
-  // Show only non-redundant "other" fields (skip policy if it's in the label)
-  const skipKeys = new Set(["Order", "rules_count"]);
-  const otherEntries = Object.entries(details).filter(([k]) => !skipKeys.has(k));
+  // Fields to show in the info section (skip internal keys)
+  const skipKeys = new Set(["condition", "needs_translation"]);
+  const infoEntries = Object.entries(details).filter(([k]) => !skipKeys.has(k));
 
   return (
     <aside className={styles.detailPanel}>
@@ -239,18 +140,31 @@ function DetailPanel({
         <button className={styles.panelClose} onClick={onClose} aria-label="Close">✕</button>
       </div>
 
-      {/* Label */}
+      {/* Node label */}
       <div className={styles.panelLabel}>{data.label}</div>
 
-      {/* Summary (policy name) */}
-      {data.summary && (
+      {/* Summary line (service type, auth method hint, etc.) */}
+      {data.summary && !["role", "default_role", "profile", "default_profile", "accept", "reject"].includes(data.summary) && (
         <p className={styles.panelSummary}>{data.summary}</p>
       )}
 
-      {/* Other metadata fields (type, template, description, etc.) */}
-      {otherEntries.length > 0 && (
+      {/* Raw condition for question nodes */}
+      {rawCondition && (
         <div className={styles.panelSection}>
-          {otherEntries.map(([k, v]) => (
+          <div className={styles.sectionLabel}>
+            <span className={styles.sectionIcon}>≡</span> Condition
+            {needsTranslation && (
+              <span className={styles.xlateFlag} title="Add this attribute to attribute_labels.py in the backend">⚠ needs translation</span>
+            )}
+          </div>
+          <ConditionCell value={rawCondition} />
+        </div>
+      )}
+
+      {/* Info fields (type, description, etc.) */}
+      {infoEntries.length > 0 && (
+        <div className={styles.panelSection}>
+          {infoEntries.map(([k, v]) => (
             <div key={k} className={styles.fieldRow}>
               <span className={styles.fieldIcon}>{FIELD_ICON[k] ?? "›"}</span>
               <span className={styles.fieldVal}>{v}</span>
@@ -259,18 +173,7 @@ function DetailPanel({
         </div>
       )}
 
-      {/* Rule table */}
-      {policyRules.length > 0 && (
-        <div className={styles.panelSection}>
-          <div className={styles.sectionLabel}>
-            <span className={styles.sectionIcon}>≡</span>
-            Rules ({policyRules.filter((r) => r.order !== "default").length})
-          </div>
-          <RuleTable rules={policyRules} stage={data.stage} />
-        </div>
-      )}
-
-      {policyRules.length === 0 && otherEntries.length === 0 && !data.summary && (
+      {!rawCondition && infoEntries.length === 0 && !data.summary && (
         <p className={styles.panelEmpty}>No additional details.</p>
       )}
     </aside>
@@ -300,7 +203,8 @@ export default function ServiceDetailPage() {
       .then((data) => {
         setTree(data);
         setNodes(data.nodes);
-        setEdges(data.edges);
+        // Apply Yes/No visual styling to edges
+        setEdges(data.edges.map(styleEdge) as typeof data.edges);
         setLoadState("ok");
       })
       .catch((err: Error) => {

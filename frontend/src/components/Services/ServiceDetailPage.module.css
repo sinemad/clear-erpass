@@ -201,6 +201,17 @@
   font-style: italic;
 }
 
+/* Translation warning flag inline with section label */
+.xlateFlag {
+  margin-left: 0.4rem;
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: #d97706;
+  font-style: normal;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
 /* Chips (roles, profiles) */
 .chipRow {
   display: flex;

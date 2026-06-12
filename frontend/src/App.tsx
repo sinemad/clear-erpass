@@ -1,5 +1,7 @@
 import { BrowserRouter, NavLink, Navigate, Route, Routes } from "react-router-dom";
 import SettingsPage from "./components/Settings/SettingsPage";
+import ServicesPage from "./components/Services/ServicesPage";
+import { useTheme } from "./hooks/useTheme";
 import styles from "./App.module.css";
 
 function Placeholder({ title }: { title: string }) {
@@ -12,6 +14,8 @@ function Placeholder({ title }: { title: string }) {
 }
 
 export default function App() {
+  const [theme, toggleTheme] = useTheme();
+
   return (
     <BrowserRouter>
       <div className={styles.layout}>
@@ -26,13 +30,16 @@ export default function App() {
           <NavLink to="/settings" className={({ isActive }) => isActive ? styles.activeLink : styles.link}>
             Settings
           </NavLink>
+          <button className={styles.themeToggle} onClick={toggleTheme} aria-label="Toggle theme">
+            {theme === "light" ? "Dark" : "Light"}
+          </button>
         </nav>
 
         <main className={styles.main}>
           <Routes>
             <Route path="/" element={<Navigate to="/access-tracker" replace />} />
             <Route path="/access-tracker" element={<Placeholder title="Access Tracker" />} />
-            <Route path="/services" element={<Placeholder title="Services" />} />
+            <Route path="/services" element={<ServicesPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Routes>
         </main>

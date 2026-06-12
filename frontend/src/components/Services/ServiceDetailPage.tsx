@@ -120,11 +120,9 @@ function ConditionBlock({ value }: { value: string }) {
 // -------------------------------------------------------------------------
 
 function DetailPanel({
-  nodeId,
   data,
   onClose,
 }: {
-  nodeId: string;
   data: DecisionNodeData;
   onClose: () => void;
 }) {

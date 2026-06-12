@@ -1,0 +1,45 @@
+.layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  font-family: system-ui, sans-serif;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0 1.5rem;
+  height: 52px;
+  background: #1a1a2e;
+  color: white;
+}
+
+.brand {
+  font-weight: 600;
+  font-size: 1rem;
+  margin-right: auto;
+  color: #e0e0e0;
+}
+
+.link,
+.activeLink {
+  font-size: 0.875rem;
+  text-decoration: none;
+  padding: 0.25rem 0;
+  color: #aab4c8;
+  border-bottom: 2px solid transparent;
+}
+
+.activeLink {
+  color: white;
+  border-bottom-color: #0070f3;
+}
+
+.link:hover {
+  color: #dde3ee;
+}
+
+.main {
+  flex: 1;
+}

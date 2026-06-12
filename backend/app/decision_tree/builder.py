@@ -480,7 +480,7 @@ def build_service_tree(service: dict[str, Any], policies: dict[str, Any] | None 
                 nodes.append(_outcome("rm_default", dr, EvaluationStage.ROLE_MAPPING,
                                       "default_role"))  # x=_OUT_X — right side, symmetric
                 edges.append(_edge(last_rm_q, "rm_default",
-                                   label="No match" if rm_rules else None,
+                                   label="Default Role (No Match)" if rm_rules else None,
                                    src_handle="bottom" if rm_rules else None))
                 all_role_out_ids.append("rm_default")
                 if dr not in assigned_roles:
@@ -561,7 +561,7 @@ def build_service_tree(service: dict[str, Any], policies: dict[str, Any] | None 
                 nodes.append(_outcome("enf_default", dp, EvaluationStage.ENFORCEMENT,
                                       "default_profile"))  # x=_OUT_X — right side
                 edges.append(_edge(last_enf_q, "enf_default",
-                                   label="No match" if enf_rules else None,
+                                   label="Default Profile (No Match)" if enf_rules else None,
                                    src_handle="bottom" if enf_rules else None))
                 all_enf_out_ids.append("enf_default")
                 current_y += _Y_STEP

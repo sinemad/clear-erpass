@@ -218,7 +218,7 @@ export function styleEdge(edge: any) {
       labelBgBorderRadius: 4,
     };
   }
-  if (label === "No" || label === "No match") {
+  if (label === "No" || label === "No match" || label?.startsWith("Default")) {
     return {
       ...edge,
       style: { stroke: "#9ca3af", strokeWidth: 1.5, strokeDasharray: "4 3" },

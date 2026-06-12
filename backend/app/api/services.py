@@ -63,9 +63,19 @@ async def get_service_decision_tree(
     auth_source_names: list[str] = service.get("authentication_sources") or []
     role_mapping_name: str = service.get("role_mapping_policy") or ""
     posture_name: str = service.get("posture_policy") or ""
-    enforcement_name: str = (
-        service.get("enforcement_policy") or service.get("enforcement_policy_name") or ""
+    _enf_raw = (
+        service.get("enforcement_policy")
+        or service.get("enforcement_policy_name")
+        or service.get("enforcement_policies")
+        or service.get("enforcement")
+        or ""
     )
+    if isinstance(_enf_raw, list):
+        _enf_raw = _enf_raw[0] if _enf_raw else ""
+    if isinstance(_enf_raw, dict):
+        _enf_raw = _enf_raw.get("name") or ""
+    enforcement_name: str = str(_enf_raw).strip()
+    logger.debug("service id=%s enforcement_name=%r all_keys=%s", service_id, enforcement_name, sorted(service.keys()))
 
     async def fetch_list(names: list[str], fn) -> list[dict]:
         if not names:

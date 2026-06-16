@@ -28,8 +28,10 @@ from __future__ import annotations
 
 import logging
 import time
+from datetime import datetime, timedelta
 from typing import Annotated, Any
 
+import requests as _requests
 from fastapi import Depends, HTTPException
 from pyclearpass import ApiLogs, ApiPolicyElements
 from sqlalchemy.orm import Session
@@ -49,11 +51,7 @@ class ClearPassClient:
     """
 
     def __init__(self, base_url: str, api_token: str, verify_ssl: bool = True) -> None:
-        # pyclearpass constructs URLs as server + path (e.g. "/config/service"),
-        # so the server value must end with /api.
-        api_url = base_url.rstrip("/")
-        if not api_url.endswith("/api"):
-            api_url = f"{api_url}/api"
+        api_url = _api_base(base_url)
         logger.debug("Initializing ClearPass client for %s (verify_ssl=%s)", api_url, verify_ssl)
         kwargs = dict(server=api_url, api_token=api_token, verify_ssl=verify_ssl)
         self._policy = ApiPolicyElements(**kwargs)
@@ -125,7 +123,7 @@ class ClearPassClient:
         logger.info("Fetching services from ClearPass")
         start = time.monotonic()
         resp = self._policy.get_config_service(limit=1000)
-        logger.debug("list_services raw response: %r", resp)
+        logger.warning("list_services raw response: %r", resp)
         self._check_error(resp, "list_services")
         items: list[dict[str, Any]] = resp.get("_embedded", {}).get("items", [])
         ms = (time.monotonic() - start) * 1000
@@ -174,39 +172,72 @@ class ClearPassClient:
         raise NotImplementedError
 
 
+def _api_base(base_url: str) -> str:
+    url = base_url.rstrip("/")
+    return url if url.endswith("/api") else f"{url}/api"
+
+
+def _fetch_oauth_token(
+    base_url: str, client_id: str, client_secret: str, verify_ssl: bool
+) -> tuple[str, datetime]:
+    """Exchange client credentials for an OAuth2 access token."""
+    url = f"{_api_base(base_url)}/oauth"
+    logger.info("Fetching OAuth2 token from %s (client_id=%s)", url, client_id)
+    resp = _requests.post(
+        url,
+        json={"grant_type": "client_credentials", "client_id": client_id, "client_secret": client_secret},
+        verify=verify_ssl,
+        timeout=15,
+    )
+    if not resp.ok:
+        logger.error("OAuth2 token request failed: %s %r", resp.status_code, resp.text)
+        raise RuntimeError(f"ClearPass OAuth2 error {resp.status_code}: {resp.text}")
+    data = resp.json()
+    access_token: str = data["access_token"]
+    expires_in: int = data.get("expires_in", 28800)
+    # Subtract 60 s so we refresh before the token actually expires
+    expires_at = datetime.utcnow() + timedelta(seconds=max(expires_in - 60, 0))
+    logger.info("OAuth2 token obtained (expires_in=%ds)", expires_in)
+    return access_token, expires_at
+
+
 def get_clearpass_client(
     db: Annotated[Session, Depends(get_db)],
 ) -> ClearPassClient:
-    """FastAPI dependency: builds a ClearPassClient from DB-stored config.
+    """FastAPI dependency: builds a ClearPassClient using OAuth2 client credentials.
 
-    Reads credentials from the app_settings row saved via the Settings UI.
-    Falls back to environment variables if no DB config exists yet.
-    Raises HTTP 503 if neither source has credentials configured.
+    Caches the access token in the DB and refreshes it automatically when it
+    nears expiry. Raises HTTP 503 if the server or credentials are not configured.
     """
     row = db.get(AppSettings, 1)
     base_url = row.clearpass_base_url if row else None
-    api_token = row.clearpass_api_token if row else None
+    client_id = row.clearpass_client_id if row else None
+    client_secret = row.clearpass_client_secret if row else None
     verify_ssl = row.clearpass_verify_ssl if row else True
 
-    # Fall back to env vars when the DB config is not yet populated
-    if not base_url or not api_token:
-        try:
-            from app.core.config import get_settings
-            s = get_settings()
-            base_url = base_url or s.clearpass_base_url
-            api_token = api_token or s.clearpass_api_token
-            verify_ssl = verify_ssl if row else s.clearpass_verify_ssl
-        except Exception:
-            pass
-
-    if not base_url or not api_token:
-        logger.warning("ClearPass client requested but server is not configured")
+    if not base_url or not client_id or not client_secret:
+        logger.warning("ClearPass client requested but credentials are not configured")
         raise HTTPException(
             status_code=503,
             detail=(
                 "ClearPass server is not configured. "
-                "Open Settings to enter the server URL and API token."
+                "Open Settings to enter the server URL, Client ID, and Client Secret."
             ),
         )
 
-    return ClearPassClient(base_url=base_url, api_token=api_token, verify_ssl=verify_ssl)
+    # Refresh the cached token if missing or within 60 s of expiry
+    now = datetime.utcnow()
+    if (
+        not row.clearpass_api_token
+        or not row.clearpass_token_expires_at
+        or row.clearpass_token_expires_at <= now
+    ):
+        try:
+            token, expires_at = _fetch_oauth_token(base_url, client_id, client_secret, verify_ssl)
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"ClearPass OAuth2 error: {exc}") from exc
+        row.clearpass_api_token = token
+        row.clearpass_token_expires_at = expires_at
+        db.commit()
+
+    return ClearPassClient(base_url=base_url, api_token=row.clearpass_api_token, verify_ssl=verify_ssl)

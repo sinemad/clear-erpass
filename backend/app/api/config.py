@@ -34,17 +34,27 @@ def _get_or_create_row(db: Session) -> AppSettings:
     return row
 
 
-@router.get("", response_model=ConfigRead)
-def get_config(db: Annotated[Session, Depends(get_db)]) -> ConfigRead:
-    """Return current ClearPass connection config (token value never returned)."""
-    row = _get_or_create_row(db)
-    logger.debug("Config read (url=%s, token_configured=%s)", row.clearpass_base_url, bool(row.clearpass_api_token))
+def _row_to_read(row: AppSettings) -> ConfigRead:
     return ConfigRead(
         clearpass_base_url=row.clearpass_base_url,
-        clearpass_api_token_configured=bool(row.clearpass_api_token),
+        clearpass_client_id=row.clearpass_client_id,
+        clearpass_client_secret_configured=bool(row.clearpass_client_secret),
         clearpass_verify_ssl=row.clearpass_verify_ssl,
         debug_logging=row.debug_logging,
     )
+
+
+@router.get("", response_model=ConfigRead)
+def get_config(db: Annotated[Session, Depends(get_db)]) -> ConfigRead:
+    """Return current ClearPass connection config (client secret never returned)."""
+    row = _get_or_create_row(db)
+    logger.debug(
+        "Config read (url=%s, client_id=%s, secret_configured=%s)",
+        row.clearpass_base_url,
+        row.clearpass_client_id,
+        bool(row.clearpass_client_secret),
+    )
+    return _row_to_read(row)
 
 
 @router.put("", response_model=ConfigRead)
@@ -54,28 +64,37 @@ def update_config(
 ) -> ConfigRead:
     """Update ClearPass connection config.
 
-    If `clearpass_api_token` is omitted or empty, the existing token is kept.
+    If `clearpass_client_secret` is omitted or empty, the existing secret is kept.
+    Changing the URL or client ID invalidates the cached access token.
     """
     row = _get_or_create_row(db)
-    token_changed = bool(body.clearpass_api_token)
+    secret_changed = bool(body.clearpass_client_secret)
+    credentials_changed = (
+        body.clearpass_base_url != row.clearpass_base_url
+        or body.clearpass_client_id != row.clearpass_client_id
+        or secret_changed
+    )
+
     row.clearpass_base_url = body.clearpass_base_url
+    row.clearpass_client_id = body.clearpass_client_id
     row.clearpass_verify_ssl = body.clearpass_verify_ssl
     row.debug_logging = body.debug_logging
-    if body.clearpass_api_token:
-        row.clearpass_api_token = body.clearpass_api_token
+    if body.clearpass_client_secret:
+        row.clearpass_client_secret = body.clearpass_client_secret
+
+    # Invalidate cached token whenever credentials change so it's re-fetched fresh
+    if credentials_changed:
+        row.clearpass_api_token = None
+        row.clearpass_token_expires_at = None
+
     db.commit()
     db.refresh(row)
     set_log_level("DEBUG" if row.debug_logging else "INFO")
     logger.info(
-        "Config updated (url=%s, verify_ssl=%s, token_changed=%s, debug_logging=%s)",
+        "Config updated (url=%s, client_id=%s, secret_changed=%s, debug_logging=%s)",
         row.clearpass_base_url,
-        row.clearpass_verify_ssl,
-        token_changed,
+        row.clearpass_client_id,
+        secret_changed,
         row.debug_logging,
     )
-    return ConfigRead(
-        clearpass_base_url=row.clearpass_base_url,
-        clearpass_api_token_configured=bool(row.clearpass_api_token),
-        clearpass_verify_ssl=row.clearpass_verify_ssl,
-        debug_logging=row.debug_logging,
-    )
+    return _row_to_read(row)

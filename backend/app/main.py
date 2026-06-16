@@ -4,12 +4,31 @@ from typing import AsyncGenerator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import Engine, text
 
 from app.api import access_tracker, config, health, logs, services
 from app.core.config import get_settings
 from app.core.logging_config import RequestLoggingMiddleware, set_log_level, setup_logging
 
 logger = logging.getLogger("app")
+
+
+def _migrate_db(engine: Engine) -> None:
+    """Add columns introduced after the initial schema without Alembic."""
+    new_columns = [
+        ("clearpass_client_id", "VARCHAR"),
+        ("clearpass_client_secret", "VARCHAR"),
+        ("clearpass_token_expires_at", "DATETIME"),
+        ("debug_logging", "BOOLEAN NOT NULL DEFAULT 0"),
+    ]
+    with engine.connect() as conn:
+        for col, col_type in new_columns:
+            try:
+                conn.execute(text(f"ALTER TABLE app_settings ADD COLUMN {col} {col_type}"))
+                conn.commit()
+                logger.info("DB migration: added column app_settings.%s", col)
+            except Exception:
+                pass  # column already exists
 
 
 @asynccontextmanager
@@ -20,6 +39,7 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
     import app.db.models  # noqa: F401
     from app.db.session import Base, SessionLocal, engine
     Base.metadata.create_all(bind=engine)
+    _migrate_db(engine)
     logger.info("Database tables verified")
 
     from app.db.models import AppSettings

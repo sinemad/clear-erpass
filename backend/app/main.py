@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import access_tracker, config, health, logs, services
 from app.core.config import get_settings
-from app.core.logging_config import RequestLoggingMiddleware, setup_logging
+from app.core.logging_config import RequestLoggingMiddleware, set_log_level, setup_logging
 
 logger = logging.getLogger("app")
 
@@ -18,9 +18,16 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("ClearPass Visualizer starting up")
 
     import app.db.models  # noqa: F401
-    from app.db.session import Base, engine
+    from app.db.session import Base, SessionLocal, engine
     Base.metadata.create_all(bind=engine)
     logger.info("Database tables verified")
+
+    from app.db.models import AppSettings
+    with SessionLocal() as db:
+        row = db.get(AppSettings, 1)
+        if row and row.debug_logging:
+            set_log_level("DEBUG")
+            logger.info("Debug logging enabled (restored from settings)")
 
     yield
 

@@ -22,6 +22,7 @@ class AppSettings(Base):
     clearpass_base_url: Mapped[str | None] = mapped_column(default=None)
     clearpass_api_token: Mapped[str | None] = mapped_column(default=None)
     clearpass_verify_ssl: Mapped[bool] = mapped_column(default=True)
+    debug_logging: Mapped[bool] = mapped_column(default=False)
     updated_at: Mapped[datetime] = mapped_column(
         default=datetime.utcnow, onupdate=datetime.utcnow, server_default=func.now()
     )

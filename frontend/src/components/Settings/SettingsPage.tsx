@@ -8,6 +8,7 @@ export default function SettingsPage() {
   const [url, setUrl] = useState("");
   const [token, setToken] = useState("");
   const [verifySSL, setVerifySSL] = useState(true);
+  const [debugLogging, setDebugLogging] = useState(false);
   const [tokenConfigured, setTokenConfigured] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [errorMsg, setErrorMsg] = useState("");
@@ -17,6 +18,7 @@ export default function SettingsPage() {
       .then((cfg: ConfigRead) => {
         setUrl(cfg.clearpass_base_url ?? "");
         setVerifySSL(cfg.clearpass_verify_ssl);
+        setDebugLogging(cfg.debug_logging);
         setTokenConfigured(cfg.clearpass_api_token_configured);
       })
       .catch(() => {/* server may not be reachable yet */});
@@ -31,6 +33,7 @@ export default function SettingsPage() {
         clearpass_base_url: url,
         clearpass_api_token: token || undefined,
         clearpass_verify_ssl: verifySSL,
+        debug_logging: debugLogging,
       });
       setTokenConfigured(cfg.clearpass_api_token_configured);
       setToken("");
@@ -87,6 +90,16 @@ export default function SettingsPage() {
             onChange={(e) => setVerifySSL(e.target.checked)}
           />
           <label htmlFor="verifySSL">Verify SSL certificate</label>
+        </div>
+
+        <div className={styles.checkboxField}>
+          <input
+            id="debugLogging"
+            type="checkbox"
+            checked={debugLogging}
+            onChange={(e) => setDebugLogging(e.target.checked)}
+          />
+          <label htmlFor="debugLogging">Enable debug logging</label>
         </div>
 
         <div className={styles.actions}>

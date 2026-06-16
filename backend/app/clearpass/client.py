@@ -125,6 +125,7 @@ class ClearPassClient:
         logger.info("Fetching services from ClearPass")
         start = time.monotonic()
         resp = self._policy.get_config_service(limit=1000)
+        logger.debug("list_services raw response: %r", resp)
         self._check_error(resp, "list_services")
         items: list[dict[str, Any]] = resp.get("_embedded", {}).get("items", [])
         ms = (time.monotonic() - start) * 1000

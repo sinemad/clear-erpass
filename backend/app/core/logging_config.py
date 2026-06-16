@@ -38,6 +38,12 @@ def get_log_buffer() -> list[dict[str, Any]]:
     return list(_LOG_BUFFER)
 
 
+def set_log_level(level: str) -> None:
+    """Change the root log level at runtime (e.g. INFO ↔ DEBUG)."""
+    numeric_level = getattr(logging, level.upper(), logging.INFO)
+    logging.getLogger().setLevel(numeric_level)
+
+
 def setup_logging(level: str = "INFO") -> None:
     """Configure root logger with a consistent format.
 

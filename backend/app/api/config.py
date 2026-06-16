@@ -12,6 +12,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from app.core.logging_config import set_log_level
 from app.db.models import AppSettings
 from app.db.session import get_db
 from app.models.config import ConfigRead, ConfigUpdate
@@ -42,6 +43,7 @@ def get_config(db: Annotated[Session, Depends(get_db)]) -> ConfigRead:
         clearpass_base_url=row.clearpass_base_url,
         clearpass_api_token_configured=bool(row.clearpass_api_token),
         clearpass_verify_ssl=row.clearpass_verify_ssl,
+        debug_logging=row.debug_logging,
     )
 
 
@@ -58,18 +60,22 @@ def update_config(
     token_changed = bool(body.clearpass_api_token)
     row.clearpass_base_url = body.clearpass_base_url
     row.clearpass_verify_ssl = body.clearpass_verify_ssl
+    row.debug_logging = body.debug_logging
     if body.clearpass_api_token:
         row.clearpass_api_token = body.clearpass_api_token
     db.commit()
     db.refresh(row)
+    set_log_level("DEBUG" if row.debug_logging else "INFO")
     logger.info(
-        "Config updated (url=%s, verify_ssl=%s, token_changed=%s)",
+        "Config updated (url=%s, verify_ssl=%s, token_changed=%s, debug_logging=%s)",
         row.clearpass_base_url,
         row.clearpass_verify_ssl,
         token_changed,
+        row.debug_logging,
     )
     return ConfigRead(
         clearpass_base_url=row.clearpass_base_url,
         clearpass_api_token_configured=bool(row.clearpass_api_token),
         clearpass_verify_ssl=row.clearpass_verify_ssl,
+        debug_logging=row.debug_logging,
     )

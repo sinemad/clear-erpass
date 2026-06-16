@@ -2,12 +2,14 @@ export interface ConfigRead {
   clearpass_base_url: string | null;
   clearpass_api_token_configured: boolean;
   clearpass_verify_ssl: boolean;
+  debug_logging: boolean;
 }
 
 export interface ConfigUpdate {
   clearpass_base_url: string;
   clearpass_api_token?: string;
   clearpass_verify_ssl: boolean;
+  debug_logging: boolean;
 }
 
 export async function fetchConfig(): Promise<ConfigRead> {

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -16,11 +16,6 @@ logger = logging.getLogger("app.api.access_tracker")
 router = APIRouter(prefix="/api/access-tracker", tags=["access-tracker"])
 
 
-def _default_start_time() -> datetime:
-    """Default to 24 hours ago when no start_time is provided."""
-    return datetime.now(tz=timezone.utc) - timedelta(hours=24)
-
-
 def _build_filter(
     start_time: datetime | None,
     end_time: datetime | None,
@@ -28,7 +23,12 @@ def _build_filter(
     username: str | None,
     result: str | None,
 ) -> dict:
-    """Build the ClearPass API JSON filter expression."""
+    """Build the ClearPass API JSON filter expression.
+
+    Only includes fields the caller explicitly provides. Time range filtering
+    is omitted by default because ClearPass's timestamp range syntax varies
+    across versions and can cause the endpoint to return 404 instead of results.
+    """
     f: dict = {}
     if service_name:
         f["service_name"] = service_name
@@ -36,11 +36,10 @@ def _build_filter(
         f["username"] = username
     if result:
         f["auth_status"] = result.upper()
-    # Time range — ClearPass expects ISO 8601 strings
-    effective_start = start_time or _default_start_time()
-    f["timestamp"] = {"$ge": effective_start.isoformat()}
-    if end_time:
-        f["timestamp"]["$le"] = end_time.isoformat()
+    if start_time:
+        f["timestamp"] = {"$ge": start_time.isoformat()}
+        if end_time:
+            f["timestamp"]["$le"] = end_time.isoformat()
     return f
 
 

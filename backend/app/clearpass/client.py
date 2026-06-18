@@ -31,6 +31,8 @@ import time
 from datetime import datetime, timedelta
 from typing import Annotated, Any
 
+import json
+
 import requests as _requests
 from fastapi import Depends, HTTPException
 from pyclearpass import ApiLogs, ApiPolicyElements
@@ -53,6 +55,9 @@ class ClearPassClient:
     def __init__(self, base_url: str, api_token: str, verify_ssl: bool = True) -> None:
         api_url = _api_base(base_url)
         logger.debug("Initializing ClearPass client for %s (verify_ssl=%s)", api_url, verify_ssl)
+        self._api_url = api_url
+        self._api_token = api_token
+        self._verify_ssl = verify_ssl
         kwargs = dict(server=api_url, api_token=api_token, verify_ssl=verify_ssl)
         self._policy = ApiPolicyElements(**kwargs)
         self._logs = ApiLogs(**kwargs)
@@ -60,6 +65,21 @@ class ClearPassClient:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    def _get(self, path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Make an authenticated GET request to the ClearPass REST API."""
+        url = f"{self._api_url}{path}"
+        headers = {
+            "Authorization": f"Bearer {self._api_token}",
+            "Accept": "application/json",
+        }
+        resp = _requests.get(
+            url, params=params, headers=headers,
+            verify=self._verify_ssl, timeout=30,
+        )
+        resp.raise_for_status()
+        return resp.json()
+
     @staticmethod
     def _check_error(resp: Any, context: str = "") -> None:
         """Raise RuntimeError if pyclearpass returned an API-level error dict."""
@@ -158,18 +178,43 @@ class ClearPassClient:
         limit: int = 50,
         offset: int = 0,
     ) -> list[dict[str, Any]]:
-        """Return a page of Access Tracker session records via ApiLogs."""
-        # TODO: confirm the correct ApiLogs method for Access Tracker records
-        # and map the filter_query into the appropriate parameter format.
-        logger.debug("list_access_tracker_records called (limit=%d, offset=%d)", limit, offset)
-        raise NotImplementedError
+        """Return a page of Access Tracker authentication records.
+
+        Uses the ClearPass /accounting/auth REST endpoint with an optional
+        JSON filter.  The filter_query dict is serialised as the ``filter``
+        query-string parameter, e.g. ``{"service_name": "Wireless 802.1X"}``.
+        """
+        logger.debug(
+            "list_access_tracker_records called (filter=%r, limit=%d, offset=%d)",
+            filter_query, limit, offset,
+        )
+        params: dict[str, Any] = {
+            "sort": "-timestamp",
+            "limit": limit,
+            "offset": offset,
+        }
+        if filter_query:
+            params["filter"] = json.dumps(filter_query)
+
+        resp = self._get("/accounting/auth", params=params)
+        items: list[dict[str, Any]] = resp.get("_embedded", {}).get("items", [])
+        logger.info("list_access_tracker_records returned %d record(s)", len(items))
+        return items
 
     def get_access_tracker_record(self, record_id: str) -> dict[str, Any] | None:
-        """Return a single Access Tracker record with full policy evaluation detail."""
-        # TODO: confirm the correct ApiLogs method and whether a separate
-        # session-details call is needed to get the full evaluation trail.
+        """Return a single Access Tracker record by ID, or None if not found."""
         logger.debug("get_access_tracker_record called (id=%s)", record_id)
-        raise NotImplementedError
+        try:
+            resp = self._get(f"/accounting/auth/{record_id}")
+        except _requests.HTTPError as exc:
+            if exc.response is not None and exc.response.status_code == 404:
+                logger.info("Access Tracker record id=%s not found", record_id)
+                return None
+            raise
+        if not isinstance(resp, dict) or "id" not in resp:
+            logger.warning("Unexpected response for record id=%s: %r", record_id, resp)
+            return None
+        return resp
 
 
 def _api_base(base_url: str) -> str:

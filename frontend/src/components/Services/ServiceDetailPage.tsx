@@ -208,6 +208,7 @@ function ResultBadge({ result }: { result: string }) {
 }
 
 function AccessTrackerDrawer({ serviceName }: { serviceName: string }) {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(true);
   const [records, setRecords] = useState<AccessTrackerRecord[]>([]);
   const [loadState, setLoadState] = useState<ATLoadState>("idle");
@@ -221,18 +222,12 @@ function AccessTrackerDrawer({ serviceName }: { serviceName: string }) {
         setLoadState("ok");
       })
       .catch((err: Error & { status?: number }) => {
-        if (err.status === 501) {
-          setLoadState("unimplemented");
-        } else {
-          setErrorMsg(err.message);
-          setLoadState("error");
-        }
+        setErrorMsg(err.message);
+        setLoadState("error");
       });
   }, [serviceName]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
 
   function formatTime(iso: string) {
     try {
@@ -250,7 +245,6 @@ function AccessTrackerDrawer({ serviceName }: { serviceName: string }) {
 
   return (
     <aside className={`${styles.atDrawer} ${open ? styles.atDrawerOpen : styles.atDrawerClosed}`}>
-      {/* Toggle handle */}
       <button
         className={styles.atDrawerHandle}
         onClick={() => setOpen((v) => !v)}
@@ -265,48 +259,40 @@ function AccessTrackerDrawer({ serviceName }: { serviceName: string }) {
         <div className={styles.atDrawerContent}>
           <div className={styles.atDrawerHeader}>
             <span className={styles.atDrawerSubtitle}>Recent Activity</span>
-            <button
-              className={styles.atDrawerRefreshBtn}
-              onClick={load}
-              aria-label="Refresh"
-              title="Refresh"
-            >
-              ↺
-            </button>
+            <button className={styles.atDrawerRefreshBtn} onClick={load} title="Refresh">↺</button>
           </div>
 
           <div className={styles.atDrawerBody}>
-            {loadState === "loading" && (
-              <p className={styles.atDrawerStatus}>Loading…</p>
-            )}
-            {loadState === "unimplemented" && (
-              <p className={styles.atDrawerStatus}>
-                Access Tracker API not yet implemented.
-              </p>
-            )}
+            {loadState === "loading" && <p className={styles.atDrawerStatus}>Loading…</p>}
+
             {loadState === "error" && (
               <div className={styles.atDrawerError}>
                 <p>{errorMsg}</p>
                 <button onClick={load}>Retry</button>
               </div>
             )}
+
             {loadState === "ok" && records.length === 0 && (
-              <p className={styles.atDrawerStatus}>No records found.</p>
+              <p className={styles.atDrawerStatus}>No records in the last 24 hours.</p>
             )}
+
             {loadState === "ok" && records.length > 0 && (
               <ul className={styles.atList}>
                 {records.map((rec) => (
-                  <li key={rec.id} className={styles.atItem}>
+                  <li
+                    key={rec.id}
+                    className={styles.atItem}
+                    onClick={() => navigate(`/access-tracker/${rec.id}`)}
+                    title="View details"
+                  >
                     <div className={styles.atRow}>
                       <span className={styles.atTime}>{formatTime(rec.timestamp)}</span>
-                      <ResultBadge result={rec.result} />
+                      <ResultBadge result={rec.auth_status} />
                     </div>
-                    {rec.username && (
-                      <div className={styles.atMeta}>
-                        <span className={styles.atMetaLabel}>User</span>
-                        <span className={styles.atMetaVal}>{rec.username}</span>
-                      </div>
-                    )}
+                    <div className={styles.atMeta}>
+                      <span className={styles.atMetaLabel}>User</span>
+                      <span className={styles.atMetaVal}>{rec.username ?? "—"}</span>
+                    </div>
                     {rec.endpoint_mac && (
                       <div className={styles.atMeta}>
                         <span className={styles.atMetaLabel}>MAC</span>

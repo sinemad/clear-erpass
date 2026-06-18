@@ -196,7 +196,21 @@ class ClearPassClient:
         if filter_query:
             params["filter"] = json.dumps(filter_query)
 
-        resp = self._get("/accounting/auth", params=params)
+        try:
+            resp = self._get("/accounting/auth", params=params)
+        except _requests.HTTPError as exc:
+            if exc.response is not None and exc.response.status_code == 404:
+                # ClearPass returns 404 (not 200 + empty list) when a filtered
+                # query matches no records.  Log the full body at WARNING so
+                # that a misconfigured endpoint or permissions issue is still
+                # visible in the logs, but return [] so the UI shows
+                # "no records" rather than an error.
+                logger.warning(
+                    "Access Tracker returned 404 — no records found (filter=%r)",
+                    filter_query,
+                )
+                return []
+            raise
         items: list[dict[str, Any]] = resp.get("_embedded", {}).get("items", [])
         logger.info("list_access_tracker_records returned %d record(s)", len(items))
         return items

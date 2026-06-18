@@ -1,22 +1,48 @@
+/* ── Page shell ──────────────────────────────────────────────────────────── */
+
 .page {
-  padding: 2rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 52px);
   font-family: system-ui, sans-serif;
   color: var(--color-text);
+  overflow: hidden;
 }
 
 .header {
   display: flex;
   align-items: center;
   gap: 1rem;
-  margin-bottom: 1.5rem;
+  padding: 0.6rem 1.5rem;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+  min-height: 52px;
 }
 
 .header h1 {
   margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ── Service list panel ──────────────────────────────────────────────────── */
+
+.listPanel {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.25rem 1.5rem;
+  min-width: 0;
 }
 
 .status {
   color: var(--color-text-muted);
+  margin: 0;
 }
 
 .notice {
@@ -65,11 +91,12 @@
   background: var(--color-bg-hover);
 }
 
-.chevron {
-  width: 1.5rem;
-  text-align: right;
-  color: var(--color-text-muted);
-  font-size: 1.1rem;
+.selectedRow {
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+}
+
+.selectedRow:hover {
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
 }
 
 .nameCell {
@@ -120,4 +147,277 @@
 
 .linkBtn:hover {
   color: var(--color-accent-hover);
+}
+
+/* ── Access Tracker Drawer ───────────────────────────────────────────────── */
+
+.drawer {
+  display: flex;
+  flex-direction: row;
+  border-left: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+  flex-shrink: 0;
+  overflow: hidden;
+  transition: width 0.2s ease;
+}
+
+.drawerOpen {
+  width: 360px;
+}
+
+.drawerClosed {
+  width: 36px;
+}
+
+/* Vertical handle strip on the left edge of the drawer */
+.drawerHandle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  border-right: 1px solid var(--color-border);
+  cursor: pointer;
+  padding: 0;
+  gap: 0.5rem;
+  color: var(--color-text-muted);
+  transition: background 0.1s, color 0.1s;
+}
+
+.drawerHandle:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text);
+}
+
+.drawerHandleLabel {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  transform: rotate(180deg);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.drawerHandleChevron {
+  font-size: 1rem;
+  line-height: 1;
+  user-select: none;
+}
+
+/* Content area (only visible when open) */
+.drawerContent {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.drawerHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 0.65rem 0.875rem;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+  gap: 0.5rem;
+}
+
+.drawerTitle {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.drawerServiceName {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.drawerSubtitle {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--color-text-muted);
+}
+
+.drawerActions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.viewTreeBtn {
+  background: none;
+  border: 1px solid var(--color-border);
+  color: var(--color-accent);
+  font-size: 0.72rem;
+  font-weight: 500;
+  padding: 0.2rem 0.55rem;
+  border-radius: 5px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.viewTreeBtn:hover {
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+  border-color: var(--color-accent);
+}
+
+.drawerRefreshBtn {
+  background: none;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  width: 1.75rem;
+  height: 1.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+
+.drawerRefreshBtn:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text);
+}
+
+.drawerBody {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.drawerStatus {
+  padding: 1rem 0.875rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.drawerError {
+  padding: 0.75rem 0.875rem;
+  font-size: 0.8rem;
+  color: var(--color-status-error);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.drawerError p {
+  margin: 0;
+}
+
+.drawerError button {
+  background: none;
+  border: 1px solid currentColor;
+  color: inherit;
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  align-self: flex-start;
+}
+
+/* ── AT record list ──────────────────────────────────────────────────────── */
+
+.atList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.atItem {
+  padding: 0.55rem 0.875rem;
+  border-bottom: 1px solid var(--color-border-light);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.atItem:last-child {
+  border-bottom: none;
+}
+
+.atRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.atTime {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.atMeta {
+  display: flex;
+  gap: 0.4rem;
+  align-items: baseline;
+}
+
+.atMetaLabel {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+  width: 2.5rem;
+  flex-shrink: 0;
+}
+
+.atMetaVal {
+  font-size: 0.72rem;
+  font-family: ui-monospace, "Cascadia Code", "Fira Code", monospace;
+  color: var(--color-text);
+  word-break: break-all;
+}
+
+/* ── Result badges ───────────────────────────────────────────────────────── */
+
+.resultBadge {
+  display: inline-block;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 0.15rem 0.45rem;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+.resultAccept {
+  background: var(--color-badge-success-bg);
+  color: var(--color-badge-success-text);
+}
+
+.resultReject {
+  background: rgba(220, 38, 38, 0.1);
+  color: #dc2626;
+}
+
+[data-theme="dark"] .resultReject {
+  background: rgba(220, 38, 38, 0.2);
+  color: #f87171;
+}
+
+.resultDrop {
+  background: var(--color-badge-neutral-bg);
+  color: var(--color-badge-neutral-text);
 }

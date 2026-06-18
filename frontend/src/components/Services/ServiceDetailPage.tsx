@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useNodesState, useEdgesState } from "reactflow";
 import { fetchServiceTree } from "../../api/services";
+import { fetchAccessTrackerByService } from "../../api/access_tracker";
+import type { AccessTrackerRecord } from "../../api/access_tracker";
 import type { DecisionNodeData, EvaluationStage, ServiceTree } from "../../types/decisionTree";
 import DecisionTreeView, { styleEdge } from "../DecisionTree/DecisionTreeView";
 import styles from "./ServiceDetailPage.module.css";
@@ -189,6 +191,140 @@ function DetailPanel({
 }
 
 // -------------------------------------------------------------------------
+// Access Tracker Drawer
+// -------------------------------------------------------------------------
+
+type ATLoadState = "idle" | "loading" | "ok" | "error" | "unimplemented";
+
+function ResultBadge({ result }: { result: string }) {
+  const r = result.toUpperCase();
+  const cls =
+    r === "ACCEPT"
+      ? styles.resultAccept
+      : r === "REJECT"
+      ? styles.resultReject
+      : styles.resultDrop;
+  return <span className={`${styles.resultBadge} ${cls}`}>{result}</span>;
+}
+
+function AccessTrackerDrawer({ serviceName }: { serviceName: string }) {
+  const [open, setOpen] = useState(true);
+  const [records, setRecords] = useState<AccessTrackerRecord[]>([]);
+  const [loadState, setLoadState] = useState<ATLoadState>("idle");
+  const [errorMsg, setErrorMsg] = useState("");
+
+  const load = useCallback(() => {
+    setLoadState("loading");
+    fetchAccessTrackerByService(serviceName)
+      .then((data) => {
+        setRecords(data);
+        setLoadState("ok");
+      })
+      .catch((err: Error & { status?: number }) => {
+        if (err.status === 501) {
+          setLoadState("unimplemented");
+        } else {
+          setErrorMsg(err.message);
+          setLoadState("error");
+        }
+      });
+  }, [serviceName]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  function formatTime(iso: string) {
+    try {
+      return new Date(iso).toLocaleString(undefined, {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      });
+    } catch {
+      return iso;
+    }
+  }
+
+  return (
+    <aside className={`${styles.atDrawer} ${open ? styles.atDrawerOpen : styles.atDrawerClosed}`}>
+      {/* Toggle handle */}
+      <button
+        className={styles.atDrawerHandle}
+        onClick={() => setOpen((v) => !v)}
+        aria-label={open ? "Collapse activity drawer" : "Expand activity drawer"}
+        title={open ? "Collapse" : "Access Tracker"}
+      >
+        <span className={styles.atDrawerHandleLabel}>Access Tracker</span>
+        <span className={styles.atDrawerHandleChevron}>{open ? "›" : "‹"}</span>
+      </button>
+
+      {open && (
+        <div className={styles.atDrawerContent}>
+          <div className={styles.atDrawerHeader}>
+            <span className={styles.atDrawerSubtitle}>Recent Activity</span>
+            <button
+              className={styles.atDrawerRefreshBtn}
+              onClick={load}
+              aria-label="Refresh"
+              title="Refresh"
+            >
+              ↺
+            </button>
+          </div>
+
+          <div className={styles.atDrawerBody}>
+            {loadState === "loading" && (
+              <p className={styles.atDrawerStatus}>Loading…</p>
+            )}
+            {loadState === "unimplemented" && (
+              <p className={styles.atDrawerStatus}>
+                Access Tracker API not yet implemented.
+              </p>
+            )}
+            {loadState === "error" && (
+              <div className={styles.atDrawerError}>
+                <p>{errorMsg}</p>
+                <button onClick={load}>Retry</button>
+              </div>
+            )}
+            {loadState === "ok" && records.length === 0 && (
+              <p className={styles.atDrawerStatus}>No records found.</p>
+            )}
+            {loadState === "ok" && records.length > 0 && (
+              <ul className={styles.atList}>
+                {records.map((rec) => (
+                  <li key={rec.id} className={styles.atItem}>
+                    <div className={styles.atRow}>
+                      <span className={styles.atTime}>{formatTime(rec.timestamp)}</span>
+                      <ResultBadge result={rec.result} />
+                    </div>
+                    {rec.username && (
+                      <div className={styles.atMeta}>
+                        <span className={styles.atMetaLabel}>User</span>
+                        <span className={styles.atMetaVal}>{rec.username}</span>
+                      </div>
+                    )}
+                    {rec.endpoint_mac && (
+                      <div className={styles.atMeta}>
+                        <span className={styles.atMetaLabel}>MAC</span>
+                        <span className={styles.atMetaVal}>{rec.endpoint_mac}</span>
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
+    </aside>
+  );
+}
+
+// -------------------------------------------------------------------------
 // Page
 // -------------------------------------------------------------------------
 
@@ -266,6 +402,10 @@ export default function ServiceDetailPage() {
               data={selectedNode.data}
               onClose={() => setSelectedNode(null)}
             />
+          )}
+
+          {tree && (
+            <AccessTrackerDrawer serviceName={tree.service_name} />
           )}
         </div>
       )}

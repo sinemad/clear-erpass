@@ -432,3 +432,228 @@
   width: 100%;
   margin-top: 0.1rem;
 }
+
+/* ── Access Tracker Drawer ───────────────────────────────────────────────── */
+
+.atDrawer {
+  display: flex;
+  flex-direction: row;
+  border-left: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+  flex-shrink: 0;
+  overflow: hidden;
+  transition: width 0.2s ease;
+}
+
+.atDrawerOpen {
+  width: 320px;
+}
+
+.atDrawerClosed {
+  width: 36px;
+}
+
+.atDrawerHandle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  border-right: 1px solid var(--color-border);
+  cursor: pointer;
+  padding: 0;
+  gap: 0.5rem;
+  color: var(--color-text-muted);
+  transition: background 0.1s, color 0.1s;
+}
+
+.atDrawerHandle:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text);
+}
+
+.atDrawerHandleLabel {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  transform: rotate(180deg);
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.atDrawerHandleChevron {
+  font-size: 1rem;
+  line-height: 1;
+  user-select: none;
+}
+
+.atDrawerContent {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.atDrawerHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.atDrawerSubtitle {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--color-text-muted);
+}
+
+.atDrawerRefreshBtn {
+  background: none;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  width: 1.6rem;
+  height: 1.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+
+.atDrawerRefreshBtn:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text);
+}
+
+.atDrawerBody {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.atDrawerStatus {
+  padding: 1rem 0.75rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.atDrawerError {
+  padding: 0.75rem;
+  font-size: 0.8rem;
+  color: var(--color-status-error);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.atDrawerError p {
+  margin: 0;
+}
+
+.atDrawerError button {
+  background: none;
+  border: 1px solid currentColor;
+  color: inherit;
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  align-self: flex-start;
+}
+
+.atList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.atItem {
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid var(--color-border-light);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.atItem:last-child {
+  border-bottom: none;
+}
+
+.atRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.atTime {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.atMeta {
+  display: flex;
+  gap: 0.4rem;
+  align-items: baseline;
+}
+
+.atMetaLabel {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+  width: 2.25rem;
+  flex-shrink: 0;
+}
+
+.atMetaVal {
+  font-size: 0.7rem;
+  font-family: ui-monospace, "Cascadia Code", "Fira Code", monospace;
+  color: var(--color-text);
+  word-break: break-all;
+}
+
+.resultBadge {
+  display: inline-block;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 0.12rem 0.4rem;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+.resultAccept {
+  background: var(--color-badge-success-bg);
+  color: var(--color-badge-success-text);
+}
+
+.resultReject {
+  background: rgba(220, 38, 38, 0.1);
+  color: #dc2626;
+}
+
+[data-theme="dark"] .resultReject {
+  background: rgba(220, 38, 38, 0.2);
+  color: #f87171;
+}
+
+.resultDrop {
+  background: var(--color-badge-neutral-bg);
+  color: var(--color-badge-neutral-text);
+}
